@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { PlusIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import Drawer from '../components/Drawer';
 import ContractForm from '../components/ContractForm';
+import TableActions from '../components/TableActions';
 import { formatCurrency } from '../utils/currency';
 import PeriodFilterBar from '../components/PeriodFilterBar';
 import CounterpartyFilter from '../components/CounterpartyFilter';
@@ -173,7 +174,10 @@ export default function ContractsPage() {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Договоры</h1>
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">Договоры</h1>
+          <p className="mt-1 text-sm text-slate-500">Управление договорами аренды</p>
+        </div>
         <button
           onClick={() => {
             setEditingContract(null);
@@ -271,7 +275,13 @@ export default function ContractsPage() {
                   {contract.tenant_name}
                 </td>
                 <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
-                  {new Date(contract.start_date).toLocaleDateString('ru-RU')} - {new Date(contract.end_date).toLocaleDateString('ru-RU')}
+                  <span className="text-slate-600">
+                    {new Date(contract.start_date).toLocaleDateString('ru-RU')}
+                  </span>
+                  <ArrowRightIcon className="h-3 w-3 inline mx-1 text-slate-400" />
+                  <span className="text-slate-600">
+                    {new Date(contract.end_date).toLocaleDateString('ru-RU')}
+                  </span>
                 </td>
                 <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
                   {formatCurrency(contract.rent_amount, contract.currency)}
@@ -286,26 +296,11 @@ export default function ContractsPage() {
                   </span>
                 </td>
                 <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
-                  <div className="flex space-x-3">
-                    <button
-                      onClick={() => handleEdit(contract)}
-                      className="text-primary-600 hover:text-primary-900"
-                    >
-                      Редактировать
-                    </button>
-                    <button
-                      onClick={() => navigate(`/contracts/${contract.id}`)}
-                      className="text-primary-600 hover:text-primary-900"
-                    >
-                      Открыть
-                    </button>
-                    <button
-                      onClick={() => handleDelete(contract)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Удалить
-                    </button>
-                  </div>
+                  <TableActions
+                    onView={() => navigate(`/contracts/${contract.id}`)}
+                    onEdit={() => handleEdit(contract)}
+                    onDelete={() => handleDelete(contract)}
+                  />
                 </td>
               </tr>
             ))}

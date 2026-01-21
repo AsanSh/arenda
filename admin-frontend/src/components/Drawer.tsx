@@ -1,4 +1,4 @@
-import React, { Fragment } from 'react';
+import React, { Fragment, ReactNode } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 
@@ -6,10 +6,11 @@ interface DrawerProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
+  footer?: ReactNode;
 }
 
-export default function Drawer({ isOpen, onClose, title, children }: DrawerProps) {
+export default function Drawer({ isOpen, onClose, title, children, footer }: DrawerProps) {
   return (
     <Transition show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
@@ -22,7 +23,7 @@ export default function Drawer({ isOpen, onClose, title, children }: DrawerProps
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity" />
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-hidden">
@@ -38,22 +39,32 @@ export default function Drawer({ isOpen, onClose, title, children }: DrawerProps
                 leaveTo="translate-x-full"
               >
                 <Dialog.Panel className="pointer-events-auto w-screen max-w-md">
-                  <div className="flex h-full flex-col overflow-y-scroll bg-white shadow-xl">
-                    <div className="flex items-center justify-between px-4 py-2 border-b">
-                      <Dialog.Title className="text-sm font-semibold text-gray-900">
+                  <div className="flex h-full flex-col bg-white shadow-large">
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+                      <Dialog.Title className="text-base font-semibold text-slate-900">
                         {title}
                       </Dialog.Title>
                       <button
                         type="button"
-                        className="text-gray-400 hover:text-gray-500"
+                        className="rounded-lg p-1.5 text-slate-400 hover:text-slate-500 hover:bg-slate-100 transition-colors"
                         onClick={onClose}
                       >
-                        <XMarkIcon className="h-4 w-4" />
+                        <XMarkIcon className="h-5 w-5" />
                       </button>
                     </div>
-                    <div className="flex-1 px-4 py-3">
+                    
+                    {/* Scrollable Content */}
+                    <div className="flex-1 overflow-y-auto px-6 py-6">
                       {children}
                     </div>
+                    
+                    {/* Sticky Footer */}
+                    {footer && (
+                      <div className="sticky bottom-0 border-t border-slate-200 bg-white/95 backdrop-blur-sm px-6 py-4">
+                        {footer}
+                      </div>
+                    )}
                   </div>
                 </Dialog.Panel>
               </Transition.Child>

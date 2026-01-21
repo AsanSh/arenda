@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { PlusIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, ChevronDownIcon, ChevronRightIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { useSearchParams } from 'react-router-dom';
 import client from '../api/client';
 import { formatAmount } from '../utils/currency';
@@ -530,34 +530,34 @@ export default function AccrualsPage() {
         </button>
       </div>
 
-      {/* KPI по текущему списку */}
-      <div className="grid grid-cols-4 gap-4 mb-4">
-        <div className="bg-white p-4 rounded-lg shadow-sm">
-          <div className="text-xs text-gray-500 mb-1">Недвижимостей</div>
-          <div className="text-2xl font-semibold text-gray-900">{summaryKPI.propertiesCount}</div>
+      {/* KPI Metrics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white p-6 rounded-card shadow-medium border border-slate-200">
+          <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Недвижимостей</div>
+          <div className="text-3xl font-bold text-slate-900">{summaryKPI.propertiesCount}</div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm">
-          <div className="text-xs text-gray-500 mb-1">Итого начислений</div>
-          <div className="text-2xl font-semibold text-gray-900">
-            {formatAmount(summaryKPI.totalFinal.toString())} KGS
+        <div className="bg-white p-6 rounded-card shadow-medium border border-slate-200">
+          <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Итого начислений</div>
+          <div className="text-3xl font-bold text-slate-900">
+            {formatAmount(summaryKPI.totalFinal.toString())} с
           </div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm">
-          <div className="text-xs text-gray-500 mb-1">Итого оплачено</div>
-          <div className="text-2xl font-semibold text-green-700">
-            {formatAmount(summaryKPI.totalPaid.toString())} KGS
+        <div className="bg-white p-6 rounded-card shadow-medium border border-slate-200">
+          <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Итого оплачено</div>
+          <div className="text-3xl font-bold text-emerald-600">
+            {formatAmount(summaryKPI.totalPaid.toString())} с
           </div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm">
-          <div className="text-xs text-gray-500 mb-1">Итого остаток</div>
-          <div className="text-2xl font-semibold text-blue-700">
-            {formatAmount(summaryKPI.totalBalance.toString())} KGS
+        <div className="bg-white p-6 rounded-card shadow-medium border border-slate-200">
+          <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Остаток к оплате</div>
+          <div className="text-3xl font-bold text-blue-600">
+            {formatAmount(summaryKPI.totalBalance.toString())} с
           </div>
         </div>
       </div>
 
       {/* Фильтры */}
-      <div className="bg-white p-3 rounded-lg shadow mb-4">
+      <div className="bg-white p-4 rounded-card shadow-medium border border-slate-200">
         <div className="flex items-end gap-3">
           <div className="flex-shrink-0">
             <label className="block text-xs font-medium text-gray-700 mb-1">Период</label>
@@ -812,33 +812,34 @@ export default function AccrualsPage() {
                   {/* Раскрытый список начислений */}
                   {isExpanded && (
                     <tr>
-                      <td colSpan={10} className="px-4 py-3 bg-gray-50">
-                        <div className="space-y-2">
-                          <div className="text-xs font-medium text-gray-700 mb-2">
-                            Начислений: {group.periods_count} | 
-                            Погашено: {group.paid_count} | 
-                            Не погашено: {group.unpaid_count} | 
-                            Просрочено: {group.overdue_count}
-                          </div>
-                          <div className="space-y-0 border-t border-gray-200">
-                            {group.accruals.map((accrual, idx) => {
-                              // Проверяем просрочку по дате, а не только по статусу
-                              const today = new Date();
-                              today.setHours(0, 0, 0, 0);
-                              const dueDate = new Date(accrual.due_date);
-                              dueDate.setHours(0, 0, 0, 0);
-                              const isOverdue = (dueDate < today && parseFloat(accrual.balance) > 0) || 
-                                                accrual.status === 'overdue' || 
-                                                (accrual.overdue_days && accrual.overdue_days > 0);
-                              const isPaid = accrual.status === 'paid';
-                              const isSelected = selectedAccruals.has(accrual.id);
-                              return (
-                                <div 
-                                  key={accrual.id} 
-                                  className={`flex items-center gap-4 text-xs py-2 px-2 hover:bg-gray-100 border-b border-gray-100 ${
-                                    isOverdue ? 'text-red-600' : 'text-gray-600'
-                                  } ${isSelected ? 'bg-primary-50' : ''}`}
-                                >
+                      <td colSpan={10} className="p-0">
+                        <div className="bg-slate-50 border-l-4 border-indigo-200">
+                          <div className="px-6 py-4">
+                            <div className="text-xs font-medium text-slate-700 mb-3">
+                              Начислений: {group.periods_count} | 
+                              Погашено: {group.paid_count} | 
+                              Не погашено: {group.unpaid_count} | 
+                              Просрочено: {group.overdue_count}
+                            </div>
+                            <div className="space-y-1">
+                              {group.accruals.map((accrual, idx) => {
+                                // Проверяем просрочку по дате, а не только по статусу
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                const dueDate = new Date(accrual.due_date);
+                                dueDate.setHours(0, 0, 0, 0);
+                                const isOverdue = (dueDate < today && parseFloat(accrual.balance) > 0) || 
+                                                  accrual.status === 'overdue' || 
+                                                  (accrual.overdue_days && accrual.overdue_days > 0);
+                                const isPaid = accrual.status === 'paid';
+                                const isSelected = selectedAccruals.has(accrual.id);
+                                return (
+                                  <div 
+                                    key={accrual.id} 
+                                    className={`flex items-center gap-4 text-xs py-3 px-4 rounded-card hover:bg-white transition-colors border-b border-slate-100 last:border-0 ${
+                                      isSelected ? 'bg-indigo-50' : ''
+                                    }`}
+                                  >
                                   <div className="w-6 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                                     <input
                                       type="checkbox"
@@ -847,40 +848,40 @@ export default function AccrualsPage() {
                                       className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                                     />
                                   </div>
-                                  <div className={`w-32 ${isOverdue ? 'font-medium' : ''}`}>
+                                  <div className="w-32 text-slate-700">
                                     {new Date(accrual.period_start).toLocaleDateString('ru-RU')} - {new Date(accrual.period_end).toLocaleDateString('ru-RU')}
                                   </div>
-                                  <div className={`w-24 ${isOverdue ? 'font-medium' : ''}`}>
+                                  <div className="w-24 text-slate-700">
                                     {new Date(accrual.due_date).toLocaleDateString('ru-RU')}
                                   </div>
                                   <div className="w-20">
                                     {(() => {
                                       const overdueDays = accrual.overdue_days || (isOverdue ? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)) : 0);
                                       return overdueDays > 0 ? (
-                                        <span className="text-red-600 font-medium">
+                                        <span className="px-2 py-0.5 rounded-full bg-red-50 text-red-700 font-medium text-xs">
                                           {overdueDays} дн.
                                         </span>
                                       ) : (
-                                        <span className="text-gray-400">-</span>
+                                        <span className="text-slate-400">-</span>
                                       );
                                     })()}
                                   </div>
-                                  <div className={`w-24 ${isOverdue ? 'font-medium text-red-600' : 'font-medium'}`}>
-                                    {formatAmount(accrual.final_amount)} {accrual.currency || 'сом'}
+                                  <div className="w-24 font-medium text-slate-900">
+                                    {formatAmount(accrual.final_amount)} {accrual.currency || 'с'}
                                   </div>
-                                  <div className={`w-24 ${isOverdue ? 'text-red-600' : ''}`}>
-                                    {formatAmount(accrual.paid_amount)} {accrual.currency || 'сом'}
+                                  <div className="w-24 text-slate-600">
+                                    {formatAmount(accrual.paid_amount)} {accrual.currency || 'с'}
                                   </div>
-                                  <div className={`w-24 font-medium ${isOverdue ? 'text-red-600' : ''}`}>
-                                    {formatAmount(accrual.balance)} {accrual.currency || 'сом'}
+                                  <div className={`w-24 font-medium ${isOverdue ? 'text-red-600' : 'text-slate-900'}`}>
+                                    {formatAmount(accrual.balance)} {accrual.currency || 'с'}
                                   </div>
                                   <div className="w-32">
-                                    <span className={`px-2 py-0.5 text-xs rounded-full ${
-                                      accrual.status === 'paid' ? 'bg-green-100 text-green-800' :
-                                      accrual.status === 'overdue' ? 'bg-red-100 text-red-800' :
-                                      accrual.status === 'partial' ? 'bg-yellow-100 text-yellow-800' :
-                                      accrual.status === 'due' ? 'bg-orange-100 text-orange-800' :
-                                      'bg-gray-100 text-gray-800'
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                                      accrual.status === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                      accrual.status === 'overdue' ? 'bg-red-50 text-red-700 border-red-200' :
+                                      accrual.status === 'partial' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                      accrual.status === 'due' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                                      'bg-slate-100 text-slate-600 border-slate-200'
                                     }`}>
                                       {getStatusLabel(accrual.status)}
                                     </span>
@@ -892,8 +893,9 @@ export default function AccrualsPage() {
                                           e.stopPropagation();
                                           handleAcceptClick(accrual);
                                         }}
-                                        className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-card hover:bg-emerald-100 transition-colors"
                                       >
+                                        <CheckCircleIcon className="h-4 w-4" />
                                         Принять
                                       </button>
                                     )}
@@ -948,6 +950,7 @@ export default function AccrualsPage() {
                               );
                             })}
                           </div>
+                        </div>
                         </div>
                       </td>
                     </tr>

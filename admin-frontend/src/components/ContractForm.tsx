@@ -151,258 +151,285 @@ export default function ContractForm({ contract, onSave, onCancel }: ContractFor
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-2">
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Общая информация */}
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-0.5">
-          Дата подписания *
-        </label>
-        <input
-          type="date"
-          required
-          value={formData.signed_at}
-          onChange={(e) => setFormData({ ...formData, signed_at: e.target.value })}
-          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-        />
-      </div>
-
-      <div>
-        <label className="block text-xs font-medium text-gray-700 mb-0.5">
-          Объект недвижимости *
-        </label>
-        <select
-          required
-          value={formData.property}
-          onChange={(e) => setFormData({ ...formData, property: e.target.value })}
-          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-        >
-          <option value="">Выберите объект</option>
-          {properties.map((prop) => (
-            <option key={prop.id} value={prop.id}>
-              {prop.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-xs font-medium text-gray-700 mb-0.5">
-          Арендатор *
-        </label>
-        <select
-          required
-          value={formData.tenant}
-          onChange={(e) => setFormData({ ...formData, tenant: e.target.value })}
-          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-        >
-          <option value="">Выберите арендатора</option>
-          {tenants.map((tenant) => (
-            <option key={tenant.id} value={tenant.id}>
-              {tenant.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-0.5">
-            Дата начала *
-          </label>
-          <input
-            type="date"
-            required
-            value={formData.start_date}
-            onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-0.5">
-            Дата окончания *
-          </label>
-          <input
-            type="date"
-            required
-            value={formData.end_date}
-            onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-0.5">
-            Ставка аренды *
-          </label>
-          <input
-            type="text"
-            required
-            min="0"
-            value={formData.rent_amount}
-            onChange={(e) => {
-              // Разрешаем только цифры и точку/запятую
-              const value = e.target.value.replace(/[^\d.,]/g, '').replace(',', '.');
-              setFormData({ ...formData, rent_amount: value });
-            }}
-            onBlur={(e) => {
-              // При потере фокуса форматируем число
-              const num = parseFloat(e.target.value);
-              if (!isNaN(num)) {
-                setFormData({ ...formData, rent_amount: num.toFixed(2) });
-              }
-            }}
-            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-          />
-        </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-0.5">
-            Валюта
-          </label>
-          <select
-            value={formData.currency}
-            onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-          >
-            <option value="KGS">KGS (сомы)</option>
-            <option value="USD">USD (доллары)</option>
-            <option value="RUB">RUB (рубли)</option>
-            <option value="EUR">EUR (евро)</option>
-          </select>
-        </div>
-        {formData.currency !== 'KGS' && (
+        <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-4 pb-2 border-b border-slate-200">
+          Общая информация
+        </h3>
+        <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-0.5">
-              Источник курса
-            </label>
-            <select
-              value={formData.exchange_rate_source}
-              onChange={(e) => setFormData({ ...formData, exchange_rate_source: e.target.value })}
-              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="nbkr">НБКР (по умолчанию)</option>
-              <option value="average">Средний курс</option>
-              <option value="best">Лучший курс</option>
-            </select>
-          </div>
-        )}
-      </div>
-      </div>
-
-      <div>
-        <label className="block text-xs font-medium text-gray-700 mb-0.5">
-          День оплаты
-        </label>
-        <input
-          type="number"
-          min="1"
-          max="31"
-          value={formData.due_day}
-          onChange={(e) => setFormData({ ...formData, due_day: parseInt(e.target.value) })}
-          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-        />
-      </div>
-
-      <div className="space-y-3">
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            checked={formData.deposit_enabled}
-            onChange={(e) => setFormData({ ...formData, deposit_enabled: e.target.checked })}
-            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-          />
-          <label className="ml-2 block text-sm text-gray-700">
-            Депозит включён
-          </label>
-        </div>
-        {formData.deposit_enabled && (
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-0.5">
-              Сумма депозита *
+            <label className="block text-xs font-medium text-slate-700 mb-1.5">
+              Дата подписания *
             </label>
             <input
-              type="number"
-              required={formData.deposit_enabled}
-              min="0"
-              step="0.01"
-              value={formData.deposit_amount}
-              onChange={(e) => setFormData({ ...formData, deposit_amount: e.target.value })}
-              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
+              type="date"
+              required
+              value={formData.signed_at}
+              onChange={(e) => setFormData({ ...formData, signed_at: e.target.value })}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
             />
           </div>
-        )}
+
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1.5">
+              Объект недвижимости *
+            </label>
+            <select
+              required
+              value={formData.property}
+              onChange={(e) => setFormData({ ...formData, property: e.target.value })}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+            >
+              <option value="">Выберите объект</option>
+              {properties.map((prop) => (
+                <option key={prop.id} value={prop.id}>
+                  {prop.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1.5">
+              Арендатор *
+            </label>
+            <select
+              required
+              value={formData.tenant}
+              onChange={(e) => setFormData({ ...formData, tenant: e.target.value })}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+            >
+              <option value="">Выберите арендатора</option>
+              {tenants.map((tenant) => (
+                <option key={tenant.id} value={tenant.id}>
+                  {tenant.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
-      <div className="space-y-3">
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            checked={formData.advance_enabled}
-            onChange={(e) => setFormData({ ...formData, advance_enabled: e.target.checked })}
-            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-          />
-          <label className="ml-2 block text-sm text-gray-700">
-            Аванс включён
-          </label>
-        </div>
-        {formData.advance_enabled && (
+      {/* Даты и условия аренды */}
+      <div>
+        <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-4 pb-2 border-b border-slate-200">
+          Даты и условия аренды
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-0.5">
-              Месяцев аванса
+            <label className="block text-xs font-medium text-slate-700 mb-1.5">
+              Дата начала *
+            </label>
+            <input
+              type="date"
+              required
+              value={formData.start_date}
+              onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1.5">
+              Дата окончания *
+            </label>
+            <input
+              type="date"
+              required
+              value={formData.end_date}
+              onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1.5">
+              День оплаты
             </label>
             <input
               type="number"
               min="1"
-              value={formData.advance_months}
-              onChange={(e) => setFormData({ ...formData, advance_months: parseInt(e.target.value) })}
-              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
+              max="31"
+              value={formData.due_day}
+              onChange={(e) => setFormData({ ...formData, due_day: parseInt(e.target.value) })}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
             />
           </div>
-        )}
+        </div>
       </div>
 
+      {/* Финансы */}
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-0.5">
-          Статус *
-        </label>
-        <select
-          required
-          value={formData.status}
-          onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-        >
-          <option value="draft">Черновик</option>
-          <option value="active">Активен</option>
-          <option value="ended">Завершён</option>
-          <option value="cancelled">Отменён</option>
-        </select>
+        <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-4 pb-2 border-b border-slate-200">
+          Финансы
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1.5">
+              Ставка аренды *
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.rent_amount}
+              onChange={(e) => {
+                const value = e.target.value.replace(/[^\d.,]/g, '').replace(',', '.');
+                setFormData({ ...formData, rent_amount: value });
+              }}
+              onBlur={(e) => {
+                const num = parseFloat(e.target.value);
+                if (!isNaN(num)) {
+                  setFormData({ ...formData, rent_amount: num.toFixed(2) });
+                }
+              }}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1.5">
+              Валюта
+            </label>
+            <select
+              value={formData.currency}
+              onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+            >
+              <option value="KGS">KGS (сомы)</option>
+              <option value="USD">USD (доллары)</option>
+              <option value="RUB">RUB (рубли)</option>
+              <option value="EUR">EUR (евро)</option>
+            </select>
+            {formData.currency !== 'KGS' && (
+              <div className="mt-3">
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                  Источник курса
+                </label>
+                <select
+                  value={formData.exchange_rate_source}
+                  onChange={(e) => setFormData({ ...formData, exchange_rate_source: e.target.value })}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                >
+                  <option value="nbkr">НБКР (по умолчанию)</option>
+                  <option value="average">Средний курс</option>
+                  <option value="best">Лучший курс</option>
+                </select>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <div className="flex items-start gap-3 p-4 rounded-xl border border-slate-200 bg-slate-50">
+            <input
+              type="checkbox"
+              checked={formData.deposit_enabled}
+              onChange={(e) => setFormData({ ...formData, deposit_enabled: e.target.checked })}
+              className="mt-0.5 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded"
+            />
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-700 cursor-pointer">
+                Депозит включён
+              </label>
+            </div>
+          </div>
+          {formData.deposit_enabled && (
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                Сумма депозита *
+              </label>
+              <input
+                type="number"
+                required={formData.deposit_enabled}
+                min="0"
+                step="0.01"
+                value={formData.deposit_amount}
+                onChange={(e) => setFormData({ ...formData, deposit_amount: e.target.value })}
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="mt-3 space-y-3">
+          <div className="flex items-start gap-3 p-4 rounded-xl border border-slate-200 bg-slate-50">
+            <input
+              type="checkbox"
+              checked={formData.advance_enabled}
+              onChange={(e) => setFormData({ ...formData, advance_enabled: e.target.checked })}
+              className="mt-0.5 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded"
+            />
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-700 cursor-pointer">
+                Аванс включён
+              </label>
+            </div>
+          </div>
+          {formData.advance_enabled && (
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                Месяцев аванса
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={formData.advance_months}
+                onChange={(e) => setFormData({ ...formData, advance_months: parseInt(e.target.value) })}
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+              />
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* Статус и комментарий */}
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-0.5">
-          Комментарий
-        </label>
-        <textarea
-          value={formData.comment}
-          onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
-          rows={2}
-          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-        />
+        <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-4 pb-2 border-b border-slate-200">
+          Статус и заметки
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1.5">
+              Статус *
+            </label>
+            <select
+              required
+              value={formData.status}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+            >
+              <option value="draft">Черновик</option>
+              <option value="active">Активен</option>
+              <option value="ended">Завершён</option>
+              <option value="cancelled">Отменён</option>
+            </select>
+          </div>
+        </div>
+        <div className="mt-4">
+          <label className="block text-xs font-medium text-slate-700 mb-1.5">
+            Комментарий
+          </label>
+          <textarea
+            value={formData.comment}
+            onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
+            rows={2}
+            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+          />
+        </div>
       </div>
 
-      <div className="flex justify-end space-x-2 pt-2">
+      <div className="flex justify-end space-x-3 pt-2">
         <button
           type="button"
           onClick={onCancel}
-          className="px-3 py-1.5 text-xs border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
+          className="px-4 py-2 text-sm border border-slate-300 rounded-xl text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
         >
           Отмена
         </button>
         <button
           type="submit"
           disabled={loading}
-          className="px-3 py-1.5 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
+          className="px-4 py-2 text-sm rounded-xl text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-50"
         >
           {loading ? 'Сохранение...' : 'Сохранить'}
         </button>

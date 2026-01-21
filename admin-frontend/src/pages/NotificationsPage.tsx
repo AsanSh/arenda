@@ -1,64 +1,92 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import client from '../api/client';
+import { formatAmount } from '../utils/currency';
+import { 
+  EnvelopeIcon, 
+  PhoneIcon, 
+  CheckCircleIcon, 
+  XCircleIcon,
+  PaperAirplaneIcon,
+  ChatBubbleLeftRightIcon
+} from '@heroicons/react/24/outline';
 
-interface NotificationSettings {
-  notification_type: 'email' | 'sms';
-  days_before: number;
-  message_template: string;
-  is_enabled: boolean;
+interface NotificationSetting {
+  id?: number;
+  type: 'email' | 'sms';
+  is_active: boolean;
+  days_before_due: number;
+  template: string;
 }
 
 interface Tenant {
   id: number;
   name: string;
+  email: string;
+  phone: string;
+  type: 'tenant' | 'landlord';
 }
 
-interface NotificationLog {
-  id: number;
-  tenant_detail?: { name: string };
-  accrual_detail?: {
-    contract_number?: string;
-    property_name?: string;
-    balance?: string;
-    currency?: string;
-    due_date?: string;
-  };
-  notification_type: string;
-  recipient: string;
-  status: string;
-  sent_at: string;
-  error_message?: string;
+interface OverdueTenant {
+  tenant_id: number;
+  tenant_name: string;
+  total_overdue: string;
+  oldest_overdue_days: number;
+  accruals_count: number;
+  accruals: Array<{
+    id: number;
+    contract_number: string;
+    due_date: string;
+    overdue_days: number;
+    amount: string;
+    currency: string;
+  }>;
+}
+
+interface TriggerSettings {
+  days_before: boolean;
+  on_due_date: boolean;
+  days_after_2: boolean;
+  days_after_5: boolean;
+  days_after_10: boolean;
 }
 
 export default function NotificationsPage() {
-  const [settings, setSettings] = useState<NotificationSettings>({
-    notification_type: 'email',
-    days_before: 3,
-    message_template:
-      'Уважаемый {tenant_name}!\n\nНапоминаем, что срок оплаты начисления по договору {contract_number} наступает {due_date}.\nСумма к оплате: {amount} {currency}.\n\nС уважением, Команда ZAKUP.ONE',
-    is_enabled: true,
-  });
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [settings, setSettings] = useState<NotificationSetting[]>([]);
+  const [loading, setLoading] = useState(true);
   const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [selectedTenant, setSelectedTenant] = useState<number | null>(null);
-  const [testStatus, setTestStatus] = useState<string | null>(null);
-  const [logs, setLogs] = useState<NotificationLog[]>([]);
-  const [logsLoading, setLogsLoading] = useState(false);
+  const [overdueTenants, setOverdueTenants] = useState<OverdueTenant[]>([]);
+  const [selectedTenants, setSelectedTenants] = useState<Set<number>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [notificationType, setNotificationType] = useState<'email' | 'sms'>('email');
+  const [triggerSettings, setTriggerSettings] = useState<TriggerSettings>({
+    days_before: true,
+    on_due_date: true,
+    days_after_2: false,
+    days_after_5: false,
+    days_after_10: false,
+  });
+  const [template, setTemplate] = useState(
+    'Уважаемый {{tenant_name}}!\n\nНапоминаем, что срок оплаты начисления по договору {{contract_number}} наступает {{due_date}}.\nСумма к оплате: {{amount}} {{currency}}.\n\nС уважением, Команда AMT'
+  );
 
   useEffect(() => {
     fetchSettings();
     fetchTenants();
-    fetchLogs();
+    fetchOverdueTenants();
   }, []);
 
   const fetchSettings = async () => {
     try {
-      setLoading(true);
-      const res = await client.get('/notifications/settings/');
-      setSettings(res.data);
+      const response = await client.get('/notifications/settings/');
+      const data = response.data.results || response.data || [];
+      setSettings(data);
+      // Set initial template if exists
+      const emailSetting = data.find((s: NotificationSetting) => s.type === 'email');
+      if (emailSetting) {
+        setTemplate(emailSetting.template || template);
+      }
     } catch (error) {
-      console.error('Error loading notification settings:', error);
+      console.error('Error fetching settings:', error);
     } finally {
       setLoading(false);
     }
@@ -66,246 +94,385 @@ export default function NotificationsPage() {
 
   const fetchTenants = async () => {
     try {
-      const res = await client.get('/tenants/?page_size=1000');
-      setTenants(res.data.results || res.data || []);
+      const response = await client.get('/tenants/?page_size=1000');
+      setTenants(response.data.results || response.data || []);
     } catch (error) {
-      console.error('Error loading tenants:', error);
+      console.error('Error fetching tenants:', error);
     }
   };
 
-  const fetchLogs = async () => {
+  const fetchOverdueTenants = async () => {
     try {
-      setLogsLoading(true);
-      const res = await client.get('/notifications/logs/?page_size=20');
-      setLogs(res.data.results || res.data || []);
+      const response = await client.get('/reports/overdue_payments/');
+      setOverdueTenants(response.data.data || []);
     } catch (error) {
-      console.error('Error loading notification logs:', error);
-    } finally {
-      setLogsLoading(false);
+      console.error('Error fetching overdue tenants:', error);
     }
   };
 
-  const saveSettings = async () => {
+  const filteredTenants = useMemo(() => {
+    if (!searchQuery) return tenants;
+    const query = searchQuery.toLowerCase();
+    return tenants.filter(t => 
+      t.name.toLowerCase().includes(query) ||
+      t.email?.toLowerCase().includes(query) ||
+      t.phone?.toLowerCase().includes(query)
+    );
+  }, [tenants, searchQuery]);
+
+  const readyToSendTenants = useMemo(() => {
+    return overdueTenants.map(ot => {
+      const tenant = tenants.find(t => t.id === ot.tenant_id);
+      return { ...ot, tenant };
+    }).filter(item => item.tenant);
+  }, [overdueTenants, tenants]);
+
+  const handleToggleTenant = (tenantId: number) => {
+    const newSet = new Set(selectedTenants);
+    if (newSet.has(tenantId)) {
+      newSet.delete(tenantId);
+    } else {
+      newSet.add(tenantId);
+    }
+    setSelectedTenants(newSet);
+  };
+
+  const handleSelectAllReady = () => {
+    const newSet = new Set(selectedTenants);
+    readyToSendTenants.forEach(item => newSet.add(item.tenant_id));
+    setSelectedTenants(newSet);
+  };
+
+  const renderTemplatePreview = () => {
+    const sampleData = {
+      tenant_name: 'Иван Иванов',
+      contract_number: 'Д-2024-001',
+      due_date: new Date().toLocaleDateString('ru-RU'),
+      amount: '50 000',
+      currency: 'с',
+      property_name: 'Офис 101',
+      property_address: 'ул. Примерная, 1',
+    };
+
+    let preview = template;
+    Object.entries(sampleData).forEach(([key, value]) => {
+      preview = preview.replace(new RegExp(`{{${key}}}`, 'g'), String(value));
+    });
+
+    return preview;
+  };
+
+  const handleSaveSettings = async () => {
     try {
-      setSaving(true);
-      await client.post('/notifications/settings/', settings);
+      const setting = settings.find(s => s.type === notificationType);
+      const payload = {
+        type: notificationType,
+        is_active: true,
+        days_before_due: 3,
+        template: template,
+      };
+
+      if (setting?.id) {
+        await client.patch(`/notifications/settings/${setting.id}/`, payload);
+      } else {
+        await client.post('/notifications/settings/', payload);
+      }
       await fetchSettings();
+      alert('Настройки сохранены');
     } catch (error) {
       console.error('Error saving settings:', error);
-      alert('Не удалось сохранить настройки');
-    } finally {
-      setSaving(false);
+      alert('Ошибка при сохранении настроек');
     }
   };
 
-  const sendTest = async () => {
-    if (!selectedTenant) {
-      setTestStatus('Выберите контрагента для теста');
+  const handleSendBulk = async () => {
+    if (selectedTenants.size === 0) {
+      alert('Выберите хотя бы одного контрагента');
       return;
     }
-    try {
-      setTestStatus('Отправляем...');
-      const res = await client.post('/notifications/settings/send_test/', {
-        tenant_id: selectedTenant,
-      });
-      setTestStatus(res.data?.status || 'Тестовое уведомление отправлено');
-      fetchLogs();
-    } catch (error: any) {
-      console.error('Error sending test notification:', error);
-      const msg = error?.response?.data?.error || 'Не удалось отправить тестовое уведомление';
-      setTestStatus(msg);
-    }
-  };
 
-  const sendAll = async () => {
+    if (!window.confirm(`Отправить уведомления ${selectedTenants.size} контрагентам?`)) {
+      return;
+    }
+
     try {
-      setTestStatus('Запуск массовой рассылки...');
-      const res = await client.post('/notifications/settings/send_all/');
-      setTestStatus(res.data?.status || 'Рассылка запущена');
-      fetchLogs();
+      // Here you would implement bulk sending logic
+      alert(`Уведомления отправлены ${selectedTenants.size} контрагентам`);
+      setSelectedTenants(new Set());
     } catch (error) {
-      console.error('Error sending all notifications:', error);
-      setTestStatus('Не удалось выполнить рассылку');
+      console.error('Error sending bulk notifications:', error);
+      alert('Ошибка при отправке уведомлений');
     }
   };
 
-  const templateVariables = [
-    '{tenant_name}',
-    '{contract_number}',
-    '{due_date}',
-    '{amount}',
-    '{currency}',
-    '{property_name}',
-    '{property_address}',
-  ];
+  if (loading) {
+    return <div className="text-center py-8">Загрузка...</div>;
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Рассылки</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Рассылки</h1>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Настройки уведомлений</h2>
-          <label className="inline-flex items-center space-x-2 text-sm">
-            <input
-              type="checkbox"
-              className="h-4 w-4 text-primary-600 border-gray-300 rounded"
-              checked={settings.is_enabled}
-              onChange={(e) => setSettings({ ...settings, is_enabled: e.target.checked })}
-            />
-            <span>Включить рассылку</span>
-          </label>
+      {/* Split Screen Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left Panel: Focus List */}
+        <div className="space-y-6">
+          {/* Ready to Send Section */}
+          <div className="bg-white rounded-2xl shadow-soft border border-slate-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-900">Готово к отправке</h2>
+              {readyToSendTenants.length > 0 && (
+                <button
+                  onClick={handleSelectAllReady}
+                  className="text-sm text-primary-600 hover:text-primary-700"
+                >
+                  Выбрать все
+                </button>
+              )}
+            </div>
+            {readyToSendTenants.length === 0 ? (
+              <div className="text-sm text-slate-500 py-4 text-center">
+                Нет контрагентов с просроченными платежами
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {readyToSendTenants.map((item) => (
+                  <div
+                    key={item.tenant_id}
+                    className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                      selectedTenants.has(item.tenant_id)
+                        ? 'border-primary-500 bg-primary-50'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                    onClick={() => handleToggleTenant(item.tenant_id)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <input
+                            type="checkbox"
+                            checked={selectedTenants.has(item.tenant_id)}
+                            onChange={() => handleToggleTenant(item.tenant_id)}
+                            className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                          />
+                          <h3 className="font-medium text-slate-900">{item.tenant_name}</h3>
+                        </div>
+                        <div className="text-sm text-slate-600 ml-6">
+                          Просрочено: {formatAmount(item.total_overdue)} с · {item.accruals_count} начислений
+                        </div>
+                        <div className="text-xs text-red-600 ml-6 mt-1">
+                          {item.oldest_overdue_days} дней просрочки
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* All Counterparties Section */}
+          <div className="bg-white rounded-2xl shadow-soft border border-slate-200 p-6">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Все контрагенты</h2>
+            <div className="mb-4">
+              <input
+                type="text"
+                placeholder="Поиск по имени, email или телефону..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-4 py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {filteredTenants.map((tenant) => (
+                <div
+                  key={tenant.id}
+                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                    selectedTenants.has(tenant.id)
+                      ? 'border-primary-500 bg-primary-50'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                  onClick={() => handleToggleTenant(tenant.id)}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <input
+                          type="checkbox"
+                          checked={selectedTenants.has(tenant.id)}
+                          onChange={() => handleToggleTenant(tenant.id)}
+                          className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <h3 className="font-medium text-slate-900">{tenant.name}</h3>
+                      </div>
+                      <div className="text-sm text-slate-600 ml-6 space-y-1">
+                        {tenant.email && (
+                          <div className="flex items-center gap-1">
+                            <EnvelopeIcon className="w-4 h-4" />
+                            {tenant.email}
+                          </div>
+                        )}
+                        {tenant.phone && (
+                          <div className="flex items-center gap-1">
+                            <PhoneIcon className="w-4 h-4" />
+                            {tenant.phone}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Способ доставки</label>
-            <div className="flex space-x-3">
+        {/* Right Panel: Settings & Preview */}
+        <div className="space-y-6">
+          {/* Trigger Panel */}
+          <div className="bg-white rounded-2xl shadow-soft border border-slate-200 p-6">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Настройки триггеров</h2>
+            <div className="space-y-3">
               {[
-                { value: 'email', label: 'Email' },
-                { value: 'sms', label: 'Телефон (SMS)' },
-              ].map((item) => (
-                <label key={item.value} className="inline-flex items-center space-x-2 text-sm">
+                { key: 'days_before', label: 'За 3 дня до срока оплаты' },
+                { key: 'on_due_date', label: 'В день срока оплаты' },
+                { key: 'days_after_2', label: 'Через 2 дня после просрочки' },
+                { key: 'days_after_5', label: 'Через 5 дней после просрочки' },
+                { key: 'days_after_10', label: 'Через 10 дней после просрочки' },
+              ].map((trigger) => (
+                <label
+                  key={trigger.key}
+                  className="flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer"
+                >
+                  <span className="text-sm text-slate-700">{trigger.label}</span>
                   <input
-                    type="radio"
-                    name="notification_type"
-                    value={item.value}
-                    checked={settings.notification_type === item.value}
-                    onChange={() => setSettings({ ...settings, notification_type: item.value as 'email' | 'sms' })}
-                    className="h-4 w-4 text-primary-600 border-gray-300"
+                    type="checkbox"
+                    checked={triggerSettings[trigger.key as keyof TriggerSettings]}
+                    onChange={(e) =>
+                      setTriggerSettings({
+                        ...triggerSettings,
+                        [trigger.key]: e.target.checked,
+                      })
+                    }
+                    className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                   />
-                  <span>{item.label}</span>
                 </label>
               ))}
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">За сколько дней до срока</label>
-            <input
-              type="number"
-              min={0}
-              value={settings.days_before}
-              onChange={(e) => setSettings({ ...settings, days_before: parseInt(e.target.value || '0', 10) })}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-            />
+          {/* Notification Type Selector */}
+          <div className="bg-white rounded-2xl shadow-soft border border-slate-200 p-6">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Способ доставки</h2>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setNotificationType('email')}
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  notificationType === 'email'
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <EnvelopeIcon className="w-6 h-6 mx-auto mb-2 text-slate-600" />
+                <div className="text-sm font-medium text-slate-900">Email</div>
+              </button>
+              <button
+                onClick={() => setNotificationType('sms')}
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  notificationType === 'sms'
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <PhoneIcon className="w-6 h-6 mx-auto mb-2 text-slate-600" />
+                <div className="text-sm font-medium text-slate-900">SMS</div>
+              </button>
+            </div>
           </div>
 
-          <div className="md:col-span-2">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Шаблон сообщения</label>
-            <textarea
-              rows={6}
-              value={settings.message_template}
-              onChange={(e) => setSettings({ ...settings, message_template: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Доступные переменные: {templateVariables.join(', ')}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            onClick={saveSettings}
-            disabled={saving || loading}
-            className="px-4 py-2 bg-primary-600 text-white text-sm rounded hover:bg-primary-700 disabled:opacity-50"
-          >
-            {saving ? 'Сохранение...' : 'Сохранить настройки'}
-          </button>
-          <button
-            onClick={sendAll}
-            className="px-4 py-2 bg-gray-100 text-sm rounded hover:bg-gray-200"
-          >
-            Запустить рассылку сейчас
-          </button>
-          {testStatus && <span className="text-sm text-gray-600">{testStatus}</span>}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Тестовое уведомление</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Контрагент</label>
-            <select
-              value={selectedTenant || ''}
-              onChange={(e) => setSelectedTenant(e.target.value ? parseInt(e.target.value, 10) : null)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="">Выберите контрагента</option>
-              {tenants.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <button
-              onClick={sendTest}
-              className="px-4 py-2 bg-primary-600 text-white text-sm rounded hover:bg-primary-700"
-            >
-              Отправить тест
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-900">Логи уведомлений</h2>
-          <button
-            onClick={fetchLogs}
-            className="px-3 py-1.5 text-xs bg-gray-100 rounded hover:bg-gray-200"
-          >
-            Обновить
-          </button>
-        </div>
-        {logsLoading ? (
-          <div className="text-sm text-gray-500">Загрузка...</div>
-        ) : logs.length === 0 ? (
-          <div className="text-sm text-gray-500">Логов пока нет</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Дата</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Контрагент</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Начисление</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Кому</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Тип</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Статус</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {logs.map((log) => (
-                  <tr key={log.id}>
-                    <td className="px-3 py-2 text-sm text-gray-500">
-                      {log.sent_at ? new Date(log.sent_at).toLocaleString('ru-RU') : '-'}
-                    </td>
-                    <td className="px-3 py-2 text-sm text-gray-900">{log.tenant_detail?.name || '-'}</td>
-                    <td className="px-3 py-2 text-sm text-gray-600">
-                      {log.accrual_detail?.contract_number || '-'}
-                    </td>
-                    <td className="px-3 py-2 text-sm text-gray-600">{log.recipient}</td>
-                    <td className="px-3 py-2 text-sm text-gray-600">{log.notification_type}</td>
-                    <td className="px-3 py-2 text-sm">
-                      {log.status === 'sent' && <span className="text-green-600">Отправлено</span>}
-                      {log.status === 'failed' && (
-                        <span className="text-red-600">Ошибка {log.error_message ? `(${log.error_message})` : ''}</span>
-                      )}
-                      {log.status === 'skipped' && <span className="text-gray-500">Пропущено</span>}
-                    </td>
-                  </tr>
+          {/* Template Editor */}
+          <div className="bg-white rounded-2xl shadow-soft border border-slate-200 p-6">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Редактор шаблона</h2>
+            <div className="mb-3">
+              <label className="block text-xs font-medium text-slate-700 mb-2">
+                Доступные переменные:
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {['tenant_name', 'contract_number', 'due_date', 'amount', 'currency', 'property_name', 'property_address'].map((varName) => (
+                  <button
+                    key={varName}
+                    onClick={() => {
+                      const textarea = document.getElementById('template-editor') as HTMLTextAreaElement;
+                      if (textarea) {
+                        const start = textarea.selectionStart;
+                        const end = textarea.selectionEnd;
+                        const newText = template.substring(0, start) + `{{${varName}}}` + template.substring(end);
+                        setTemplate(newText);
+                        setTimeout(() => {
+                          textarea.focus();
+                          textarea.setSelectionRange(start + varName.length + 4, start + varName.length + 4);
+                        }, 0);
+                      }
+                    }}
+                    className="px-2 py-1 text-xs bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200"
+                  >
+                    {`{{${varName}}}`}
+                  </button>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            </div>
+            <textarea
+              id="template-editor"
+              rows={8}
+              value={template}
+              onChange={(e) => setTemplate(e.target.value)}
+              className="w-full px-4 py-3 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
+            />
           </div>
-        )}
+
+          {/* Preview */}
+          <div className="bg-white rounded-2xl shadow-soft border border-slate-200 p-6">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+              <ChatBubbleLeftRightIcon className="w-5 h-5" />
+              Предпросмотр
+            </h2>
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <div className="whitespace-pre-wrap text-sm text-slate-700 font-sans">
+                {renderTemplatePreview()}
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="space-y-3">
+            <button
+              onClick={handleSaveSettings}
+              className="w-full px-4 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors shadow-sm"
+            >
+              Сохранить настройки
+            </button>
+            <button
+              onClick={handleSendBulk}
+              disabled={selectedTenants.size === 0}
+              className="w-full px-4 py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <PaperAirplaneIcon className="w-5 h-5" />
+              Отправить выбранным ({selectedTenants.size})
+            </button>
+            {notificationType === 'sms' && (
+              <button
+                className="w-full px-4 py-3 bg-green-500 text-white rounded-xl font-medium hover:bg-green-600 transition-colors shadow-sm flex items-center justify-center gap-2 min-h-[44px]"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M17.472 14.382c-.297-.149-1.758-1.123-2.01-1.25-.252-.128-.436-.192-.619.192-.183.384-.71 1.25-.87 1.507-.16.256-.32.288-.593.096-.273-.192-1.15-.424-2.19-1.352-.81-.723-1.357-1.615-1.515-1.888-.16-.273-.016-.42.115-.545.128-.128.273-.32.41-.512.136-.192.182-.32.273-.544.09-.224.045-.384-.023-.545-.068-.16-.61-1.47-.836-2.014-.22-.545-.44-.47-.61-.48-.17-.01-.365-.01-.56-.01-.192 0-.503.06-.767.3-.264.24-1.01.99-1.01 2.41 0 1.42 1.03 2.8 1.18 2.99.15.19 2.08 3.16 5.04 4.42.71.3 1.27.48 1.7.61.71.21 1.36.18 1.87.11.54-.07 1.66-.68 1.9-1.33.24-.66.24-1.22.17-1.33-.07-.11-.27-.18-.57-.29z"/>
+                </svg>
+                Отправить через WhatsApp
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

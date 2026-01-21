@@ -3,6 +3,8 @@ import client from '../api/client';
 import { formatCurrency } from '../utils/currency';
 import PeriodFilterBar from '../components/PeriodFilterBar';
 import { DatePreset, getPresetRange } from '../utils/datePresets';
+import SegmentedControl from '../components/SegmentedControl';
+import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 
 interface Property {
   id: number;
@@ -152,6 +154,48 @@ export default function ReportsPage() {
       ...prev,
       [section]: !prev[section]
     }));
+  };
+
+  const handleExportToExcel = () => {
+    // Simple CSV export (can be enhanced with a proper Excel library like xlsx)
+    let csvContent = '';
+    
+    if (reportType === 'profit_loss' && reportData) {
+      csvContent = 'Отчет о прибылях и убытках\n\n';
+      csvContent += `Период: ${reportData.period?.all_time ? 'Все время' : `${reportData.period?.from || ''} - ${reportData.period?.to || ''}`}\n\n`;
+      csvContent += 'Категория,Сумма\n';
+      csvContent += `Доходы (начислено),${reportData.summary?.revenue || '0'}\n`;
+      csvContent += `Поступления,${reportData.summary?.received || '0'}\n`;
+      csvContent += `Расходы,${reportData.summary?.expenses || '0'}\n`;
+      csvContent += `Прибыль,${reportData.summary?.profit || '0'}\n`;
+    } else if (reportType === 'cash_flow' && reportData) {
+      csvContent = 'Отчет о движении денежных средств\n\n';
+      csvContent += `Период: ${reportData.period?.all_time ? 'Все время' : `${reportData.period?.from || ''} - ${reportData.period?.to || ''}`}\n\n`;
+      csvContent += 'Категория,Сумма\n';
+      csvContent += `Доходы,${reportData.summary?.income || '0'}\n`;
+      csvContent += `Расходы,${reportData.summary?.expenses || '0'}\n`;
+      csvContent += `Переводы входящие,${reportData.summary?.transfers_in || '0'}\n`;
+      csvContent += `Переводы исходящие,${reportData.summary?.transfers_out || '0'}\n`;
+      csvContent += `Чистый поток,${reportData.summary?.net_flow || '0'}\n`;
+    } else if (reportType === 'overdue' && reportData) {
+      csvContent = 'Отчет о просроченных платежах\n\n';
+      csvContent += `Дата: ${reportData.as_of_date || new Date().toISOString()}\n\n`;
+      csvContent += 'Контрагент,Просрочено,Дней просрочки,Количество начислений\n';
+      (reportData.data || []).forEach((item: any) => {
+        csvContent += `${item.tenant_name},${item.total_overdue},${item.oldest_overdue_days},${item.accruals_count}\n`;
+      });
+    }
+
+    // Create blob and download
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `report_${reportType}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const renderProfitLossReport = () => {
@@ -597,38 +641,26 @@ export default function ReportsPage() {
       </div>
 
       {/* Выбор типа отчета */}
-      <div className="bg-white p-4 rounded-lg shadow mb-4">
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setReportType('profit_loss')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              reportType === 'profit_loss'
-                ? 'bg-primary-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Прибыли и убытки
-          </button>
-          <button
-            onClick={() => setReportType('cash_flow')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              reportType === 'cash_flow'
-                ? 'bg-primary-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Движение денежных средств
-          </button>
-          <button
-            onClick={() => setReportType('overdue')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              reportType === 'overdue'
-                ? 'bg-primary-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Просроченные платежи
-          </button>
+      <div className="bg-white p-4 rounded-2xl shadow-soft border border-slate-200 mb-4">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <SegmentedControl
+            options={[
+              { value: 'profit_loss', label: 'Прибыли и убытки' },
+              { value: 'cash_flow', label: 'Движение денежных средств' },
+              { value: 'overdue', label: 'Просроченные платежи' },
+            ]}
+            value={reportType}
+            onChange={(value) => setReportType(value as ReportType)}
+          />
+          {reportData && (
+            <button
+              onClick={handleExportToExcel}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors text-sm font-medium min-h-[44px]"
+            >
+              <ArrowDownTrayIcon className="w-5 h-5" />
+              Экспорт в Excel
+            </button>
+          )}
         </div>
       </div>
 
