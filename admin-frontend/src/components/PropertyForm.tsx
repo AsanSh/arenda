@@ -15,8 +15,8 @@ interface Property {
 
 interface PropertyFormProps {
   property: Property | null;
-  onSave: () => void;
-  onCancel: () => void;
+  onSubmit: (data: Property) => Promise<void>;
+  loading?: boolean;
 }
 
 const PROPERTY_TYPES = [
@@ -35,7 +35,7 @@ const STATUSES = [
   { value: 'inactive', label: 'Неактивен' },
 ];
 
-export default function PropertyForm({ property, onSave, onCancel }: PropertyFormProps) {
+export default function PropertyForm({ property, onSubmit, loading = false }: PropertyFormProps) {
   const [formData, setFormData] = useState<Property>({
     name: '',
     property_type: 'office',
@@ -46,7 +46,6 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
     owner: '',
     comment: '',
   });
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (property) {
@@ -56,25 +55,11 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-
-    try {
-      if (property?.id) {
-        await client.patch(`/properties/${property.id}/`, formData);
-      } else {
-        await client.post('/properties/', formData);
-      }
-      onSave();
-    } catch (error) {
-      console.error('Error saving property:', error);
-      alert('Ошибка при сохранении');
-    } finally {
-      setLoading(false);
-    }
+    await onSubmit(formData);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-2">
+    <form id="property-form" onSubmit={handleSubmit} className="space-y-2">
       <div>
         <label className="block text-xs font-medium text-gray-700 mb-0.5">
           Название объекта *
@@ -187,22 +172,6 @@ export default function PropertyForm({ property, onSave, onCancel }: PropertyFor
         />
       </div>
 
-      <div className="flex justify-end space-x-2 pt-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-3 py-1.5 text-xs border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
-        >
-          Отмена
-        </button>
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-3 py-1.5 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
-        >
-          {loading ? 'Сохранение...' : 'Сохранить'}
-        </button>
-      </div>
     </form>
   );
 }

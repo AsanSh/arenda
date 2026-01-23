@@ -11,6 +11,7 @@ from payments.models import Payment
 from accounts.models import Account
 from properties.models import Property
 from core.models import Tenant
+from deposits.models import Deposit
 
 
 class DashboardViewSet(viewsets.ViewSet):
@@ -89,6 +90,15 @@ class DashboardViewSet(viewsets.ViewSet):
             total=Sum('balance')
         )['total'] or Decimal('0')
         
+        # Статистика по депозитам
+        deposits_total = Deposit.objects.aggregate(
+            total=Sum('amount')
+        )['total'] or Decimal('0')
+        deposits_balance = Deposit.objects.aggregate(
+            total=Sum('balance')
+        )['total'] or Decimal('0')
+        deposits_count = Deposit.objects.count()
+        
         return Response({
             'accruals': {
                 'total': str(total_accruals),
@@ -109,6 +119,11 @@ class DashboardViewSet(viewsets.ViewSet):
                 'tenants': total_tenants,
                 'contracts': total_contracts,
                 'account_balance': str(total_account_balance),
+            },
+            'deposits': {
+                'total': str(deposits_total),
+                'balance': str(deposits_balance),
+                'count': deposits_count,
             }
         })
     

@@ -23,8 +23,8 @@ interface Contract {
 
 interface AccrualFormProps {
   accrual: AccrualFormData | null;
-  onSave: (formData?: AccrualFormData) => void;
-  onCancel: () => void;
+  onSubmit: (formData: AccrualFormData) => Promise<void>;
+  loading?: boolean;
   isBulkEdit?: boolean;
   selectedCount?: number;
 }
@@ -41,7 +41,7 @@ const UTILITY_TYPES = [
   { value: 'other', label: 'Прочие расходы' },
 ];
 
-export default function AccrualForm({ accrual, onSave, onCancel, isBulkEdit = false, selectedCount = 0 }: AccrualFormProps) {
+export default function AccrualForm({ accrual, onSubmit, loading = false, isBulkEdit = false, selectedCount = 0 }: AccrualFormProps) {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [formData, setFormData] = useState<AccrualFormData>({
     contract: 0,
@@ -54,7 +54,6 @@ export default function AccrualForm({ accrual, onSave, onCancel, isBulkEdit = fa
     utility_type: 'rent',
     comment: '',
   });
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetchContracts();
@@ -74,36 +73,19 @@ export default function AccrualForm({ accrual, onSave, onCancel, isBulkEdit = fa
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-
-    try {
-      if (isBulkEdit) {
-        // Массовое редактирование - передаем данные в onSave
-        onSave(formData);
-      } else {
-        // Обычное редактирование/создание
-        const payload = {
-          ...formData,
-          contract: formData.contract || undefined,
-        };
-        
-        if (accrual?.id) {
-          await client.patch(`/accruals/${accrual.id}/`, payload);
-        } else {
-          await client.post('/accruals/', payload);
-        }
-        onSave();
-      }
-    } catch (error: any) {
-      console.error('Error saving accrual:', error);
-      alert(error.response?.data?.error || 'Ошибка при сохранении');
-    } finally {
-      setLoading(false);
+    if (!formData.contract || formData.contract === 0) {
+      alert('Выберите договор');
+      return;
     }
+    const payload: AccrualFormData = {
+      ...formData,
+      contract: formData.contract,
+    };
+    await onSubmit(payload);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-2">
+    <form id="accrual-form" onSubmit={handleSubmit} className="space-y-2">
       {isBulkEdit && (
         <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
           Массовое редактирование: выбрано начислений - {selectedCount}
@@ -258,22 +240,6 @@ export default function AccrualForm({ accrual, onSave, onCancel, isBulkEdit = fa
         />
       </div>
 
-      <div className="flex justify-end space-x-2 pt-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-3 py-1.5 text-xs border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
-        >
-          Отмена
-        </button>
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-3 py-1.5 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
-        >
-          {loading ? 'Сохранение...' : 'Сохранить'}
-        </button>
-      </div>
     </form>
   );
 }

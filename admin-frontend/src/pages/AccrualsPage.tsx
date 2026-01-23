@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { PlusIcon, ChevronDownIcon, ChevronRightIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { Search } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import client from '../api/client';
 import { formatAmount } from '../utils/currency';
@@ -9,6 +10,7 @@ import PeriodFilterBar from '../components/PeriodFilterBar';
 import CounterpartyFilter from '../components/CounterpartyFilter';
 import AcceptPaymentModal from '../components/AcceptPaymentModal';
 import BulkAcceptPaymentModal from '../components/BulkAcceptPaymentModal';
+import ActionsMenu from '../components/ui/ActionsMenu';
 import { DatePreset } from '../utils/datePresets';
 
 interface Accrual {
@@ -163,37 +165,28 @@ export default function AccrualsPage() {
     }
   };
 
-  const handleSave = async (formData?: any) => {
-    // Если это массовое редактирование
-    if (isBulkEdit && selectedAccruals.size > 0 && formData) {
-      try {
+  const [formLoading, setFormLoading] = useState(false);
+
+  const handleSubmit = useCallback(async (formData: any) => {
+    setFormLoading(true);
+    try {
+      if (isBulkEdit && selectedAccruals.size > 0) {
+        // Массовое редактирование
         const updateData: any = {
           ids: Array.from(selectedAccruals),
         };
         
-        // Добавляем только измененные поля (сравниваем с исходными значениями)
-        if (formData.due_date && formData.due_date !== editingAccrual?.due_date) {
-          updateData.due_date = formData.due_date;
-        }
-        if (formData.base_amount !== undefined && formData.base_amount !== editingAccrual?.base_amount) {
-          updateData.base_amount = formData.base_amount;
-        }
-        if (formData.adjustments !== undefined && formData.adjustments !== editingAccrual?.adjustments) {
-          updateData.adjustments = formData.adjustments;
-        }
-        if (formData.utilities_amount !== undefined && formData.utilities_amount !== editingAccrual?.utilities_amount) {
-          updateData.utilities_amount = formData.utilities_amount;
-        }
-        if (formData.utility_type && formData.utility_type !== editingAccrual?.utility_type) {
-          updateData.utility_type = formData.utility_type;
-        }
-        if (formData.comment !== undefined && formData.comment !== editingAccrual?.comment) {
-          updateData.comment = formData.comment;
-        }
+        // Добавляем только измененные поля
+        if (formData.due_date) updateData.due_date = formData.due_date;
+        if (formData.base_amount !== undefined) updateData.base_amount = formData.base_amount;
+        if (formData.adjustments !== undefined) updateData.adjustments = formData.adjustments;
+        if (formData.utilities_amount !== undefined) updateData.utilities_amount = formData.utilities_amount;
+        if (formData.utility_type) updateData.utility_type = formData.utility_type;
+        if (formData.comment !== undefined) updateData.comment = formData.comment;
         
-        // Если нет изменений, выходим
-        if (Object.keys(updateData).length === 1) { // только ids
+        if (Object.keys(updateData).length === 1) {
           alert('Нет изменений для сохранения');
+          setFormLoading(false);
           return;
         }
         
@@ -201,29 +194,25 @@ export default function AccrualsPage() {
         alert(response.data.status || `Обновлено начислений: ${response.data.updated_count}`);
         setSelectedAccruals(new Set());
         setIsBulkEdit(false);
-        setIsDrawerOpen(false);
-        setEditingAccrual(null);
-        fetchAccruals();
-        return;
-      } catch (error: any) {
-        let errorMessage = 'Ошибка при массовом обновлении';
-        if (error.response?.data) {
-          if (error.response.data.error) {
-            errorMessage = error.response.data.error;
-          } else if (typeof error.response.data === 'string') {
-            errorMessage = error.response.data;
-          }
+      } else {
+        // Обычное редактирование/создание
+        if (editingAccrual?.id) {
+          await client.patch(`/accruals/${editingAccrual.id}/`, formData);
+        } else {
+          await client.post('/accruals/', formData);
         }
-        alert(errorMessage);
-        return;
       }
+      setIsDrawerOpen(false);
+      setEditingAccrual(null);
+      fetchAccruals();
+    } catch (error: any) {
+      console.error('Error saving accrual:', error);
+      const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || 'Ошибка при сохранении';
+      alert(errorMessage);
+    } finally {
+      setFormLoading(false);
     }
-    
-    setIsDrawerOpen(false);
-    setEditingAccrual(null);
-    setIsBulkEdit(false);
-    fetchAccruals();
-  };
+  }, [editingAccrual, isBulkEdit, selectedAccruals]);
 
   const handleAdd = () => {
     setEditingAccrual(null);
@@ -519,8 +508,8 @@ export default function AccrualsPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Начисления</h1>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 md:mb-6">
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Начисления</h1>
         <button
           onClick={handleAdd}
           className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
@@ -530,93 +519,125 @@ export default function AccrualsPage() {
         </button>
       </div>
 
-      {/* KPI Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-card shadow-medium border border-slate-200">
-          <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Недвижимостей</div>
-          <div className="text-3xl font-bold text-slate-900">{summaryKPI.propertiesCount}</div>
+      {/* KPI Metrics Cards - уменьшена высота карточек еще больше */}
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 mb-4 md:mb-6">
+        <div 
+          onClick={() => window.location.href = '/properties'}
+          className="bg-white p-2 rounded-card shadow-medium border border-slate-200 cursor-pointer hover:border-indigo-300 hover:shadow-large transition-all"
+        >
+          <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-0.5">Недвижимостей</div>
+          <div className="text-base md:text-lg font-semibold text-slate-900">{summaryKPI.propertiesCount}</div>
         </div>
-        <div className="bg-white p-6 rounded-card shadow-medium border border-slate-200">
-          <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Итого начислений</div>
-          <div className="text-3xl font-bold text-slate-900">
+        <div 
+          className="bg-white p-2 rounded-card shadow-medium border border-slate-200 cursor-pointer hover:border-indigo-300 hover:shadow-large transition-all"
+        >
+          <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-0.5">Итого начислений</div>
+          <div className="text-base md:text-lg font-semibold text-slate-900">
             {formatAmount(summaryKPI.totalFinal.toString())} с
           </div>
         </div>
-        <div className="bg-white p-6 rounded-card shadow-medium border border-slate-200">
-          <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Итого оплачено</div>
-          <div className="text-3xl font-bold text-emerald-600">
+        <div 
+          onClick={() => window.location.href = '/payments'}
+          className="bg-white p-2 rounded-card shadow-medium border border-slate-200 cursor-pointer hover:border-emerald-300 hover:shadow-large transition-all"
+        >
+          <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-0.5">Итого оплачено</div>
+          <div className="text-base md:text-lg font-semibold text-emerald-600">
             {formatAmount(summaryKPI.totalPaid.toString())} с
           </div>
         </div>
-        <div className="bg-white p-6 rounded-card shadow-medium border border-slate-200">
-          <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Остаток к оплате</div>
-          <div className="text-3xl font-bold text-blue-600">
+        <div 
+          className="bg-white p-2 rounded-card shadow-medium border border-slate-200 cursor-pointer hover:border-blue-300 hover:shadow-large transition-all"
+        >
+          <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-0.5">Остаток к оплате</div>
+          <div className="text-base md:text-lg font-semibold text-blue-600">
             {formatAmount(summaryKPI.totalBalance.toString())} с
           </div>
         </div>
       </div>
 
-      {/* Фильтры */}
-      <div className="bg-white p-4 rounded-card shadow-medium border border-slate-200">
-        <div className="flex items-end gap-3">
-          <div className="flex-shrink-0">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Период</label>
-            <PeriodFilterBar
-              value={dateFilter}
-              onChange={setDateFilter}
-              urlParamPrefix="due_date"
-            />
-          </div>
-          <div className="flex-shrink-0 min-w-[180px]">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Контрагент</label>
-            <CounterpartyFilter
-              counterparts={tenants}
-              selected={selectedTenants}
-              onChange={setSelectedTenants}
-            />
-          </div>
-          <div className="flex-shrink-0 min-w-[120px]">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Статус</label>
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="">Все</option>
-              <option value="planned">Ожидает</option>
-              <option value="due">К оплате</option>
-              <option value="overdue">Просрочено</option>
-              <option value="partial">Частично оплачено</option>
-              <option value="paid">Оплачено</option>
-            </select>
-          </div>
-          <div className="flex-shrink-0 min-w-[140px]">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Тип начисления</label>
+      {/* Поиск - сверху отдельно */}
+      <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-200 mb-3">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Договор, недвижимость, арендатор..."
+            value={filters.search}
+            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
+        </div>
+      </div>
+
+      {/* Фильтры в виде вкладок */}
+      <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-200 mb-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-gray-700 mr-1">Показать:</span>
+          <button
+            onClick={() => setFilters({ ...filters, status: '' })}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+              !filters.status
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Все начисления
+          </button>
+          <button
+            onClick={() => setFilters({ ...filters, status: 'overdue' })}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+              filters.status === 'overdue'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Просрочено
+          </button>
+          <button
+            onClick={() => setFilters({ ...filters, status: 'due' })}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+              filters.status === 'due'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            К оплате
+          </button>
+          <button
+            onClick={() => setFilters({ ...filters, status: 'paid' })}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+              filters.status === 'paid'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Оплачено
+          </button>
+          <div className="ml-auto flex items-center gap-2">
             <select
               value={filters.utility_type}
               onChange={(e) => setFilters({ ...filters, utility_type: e.target.value })}
-              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
+              className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
             >
-              <option value="">Все</option>
+              <option value="">Все типы</option>
               <option value="rent">Аренда</option>
               <option value="electricity">Электричество</option>
               <option value="water">Вода</option>
               <option value="gas">Газ</option>
               <option value="garbage">Мусор</option>
               <option value="service">Сервисное обслуживание</option>
-              <option value="salary">Зарплата</option>
-              <option value="transport">Транспортные расходы</option>
-              <option value="other">Прочие расходы</option>
             </select>
-          </div>
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Поиск</label>
-            <input
-              type="text"
-              placeholder="Договор, недвижимость..."
-              value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
+            <div className="min-w-[180px]">
+              <CounterpartyFilter
+                counterparts={tenants}
+                selected={selectedTenants}
+                onChange={setSelectedTenants}
+              />
+            </div>
+            <PeriodFilterBar
+              value={dateFilter}
+              onChange={setDateFilter}
+              urlParamPrefix="due_date"
             />
           </div>
         </div>
@@ -689,10 +710,12 @@ export default function AccrualsPage() {
       )}
 
       <div className="bg-white shadow rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
+        <div className="overflow-x-auto -mx-4 md:mx-0">
+          <div className="inline-block min-w-full align-middle">
+            <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 tracking-wider w-8">
+              <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider w-8 leading-none">
                 <input
                   type="checkbox"
                   checked={selectedAccruals.size > 0 && selectedAccruals.size === accruals.length}
@@ -700,37 +723,40 @@ export default function AccrualsPage() {
                   className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                 />
               </th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 tracking-wider w-8"></th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">
+              <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider w-8 leading-none"></th>
+              <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider leading-none">
                 Адрес недвижимости
               </th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">
+              <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider leading-none">
                 Арендатор
               </th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">
+              <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider leading-none">
                 Тип начисления
               </th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">
+              <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider leading-none">
                 Срок оплаты
               </th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">
+              <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider leading-none">
                 Просрочка
               </th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">
+              <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider leading-none">
                 Итог
               </th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">
+              <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider leading-none">
                 Оплачено
               </th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">
+              <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider leading-none">
                 Остаток
               </th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">
+              <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider leading-none">
                 Статус
+              </th>
+              <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider leading-none">
+                Действия
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white divide-y divide-gray-100">
             {propertyGroups.map((group, groupIndex) => {
               const propertyKey = `${group.property_id}_${group.property_address || group.property_name}`;
               const isExpanded = expandedProperties.has(propertyKey);
@@ -741,7 +767,7 @@ export default function AccrualsPage() {
                     className={`cursor-pointer hover:bg-gray-50 ${groupIndex % 2 === 0 ? 'bg-white' : 'bg-primary-50'}`}
                     onClick={() => toggleProperty(propertyKey)}
                   >
-                    <td className="px-4 py-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-2 py-0.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={group.accruals.length > 0 && group.accruals.every(a => selectedAccruals.has(a.id))}
@@ -753,32 +779,32 @@ export default function AccrualsPage() {
                         className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                       />
                     </td>
-                    <td className="px-4 py-2 whitespace-nowrap">
+                    <td className="px-2 py-0.5 whitespace-nowrap">
                       {isExpanded ? (
                         <ChevronDownIcon className="h-4 w-4 text-gray-500" />
                       ) : (
                         <ChevronRightIcon className="h-4 w-4 text-gray-500" />
                       )}
                     </td>
-                    <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td className="px-2 py-0.5 whitespace-nowrap text-xs font-medium text-gray-900 leading-tight">
                       {group.property_address || group.property_name}
                     </td>
-                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-500 leading-tight">
                       {group.tenant_name}
                     </td>
-                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
-                      <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                    <td className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-500 leading-tight">
+                      <span className="px-1.5 py-0.5 text-xs rounded-full bg-blue-100 text-blue-800 leading-none">
                         {group.utility_type_display}
                       </span>
                     </td>
-                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-500 leading-tight">
                       {group.accruals.length > 0 && (
                         <span className="text-xs text-gray-400">
                           {new Date(Math.min(...group.accruals.map(a => new Date(a.due_date).getTime()))).toLocaleDateString('ru-RU')}
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-500 leading-tight">
                       {group.max_overdue_days > 0 ? (
                         <span className="text-red-600 font-medium">
                           {group.max_overdue_days} дн.
@@ -787,17 +813,17 @@ export default function AccrualsPage() {
                         <span className="text-gray-400">-</span>
                       )}
                     </td>
-                    <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td className="px-2 py-0.5 whitespace-nowrap text-xs font-medium text-gray-900 leading-tight">
                       {formatAmount(group.total_final.toString())} {group.currency}
                     </td>
-                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-500 leading-tight">
                       {formatAmount(group.total_paid.toString())} {group.currency}
                     </td>
-                    <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td className="px-2 py-0.5 whitespace-nowrap text-xs font-medium text-gray-900 leading-tight">
                       {formatAmount(group.total_balance.toString())} {group.currency}
                     </td>
-                    <td className="px-4 py-2 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
+                    <td className="px-2 py-0.5 whitespace-nowrap leading-tight">
+                      <span className={`px-1.5 py-0.5 text-xs rounded-full leading-none ${
                         group.status === 'paid' ? 'bg-green-100 text-green-800' :
                         group.status === 'overdue' ? 'bg-red-100 text-red-800' :
                         group.status === 'partial' ? 'bg-yellow-100 text-yellow-800' :
@@ -807,6 +833,15 @@ export default function AccrualsPage() {
                         {getStatusLabel(group.status)}
                       </span>
                     </td>
+                    <td className="px-2 py-0.5 whitespace-nowrap text-right leading-tight">
+                      <div className="flex justify-end group">
+                        <ActionsMenu
+                          items={[
+                            { label: 'Редактировать', onClick: () => {/* TODO: массовое редактирование группы */} },
+                          ]}
+                        />
+                      </div>
+                    </td>
                   </tr>
                   
                   {/* Раскрытый список начислений */}
@@ -814,7 +849,7 @@ export default function AccrualsPage() {
                     <tr>
                       <td colSpan={10} className="p-0">
                         <div className="bg-slate-50 border-l-4 border-indigo-200">
-                          <div className="px-6 py-4">
+                          <div className="px-4 py-2">
                             <div className="text-xs font-medium text-slate-700 mb-3">
                               Начислений: {group.periods_count} | 
                               Погашено: {group.paid_count} | 
@@ -836,7 +871,7 @@ export default function AccrualsPage() {
                                 return (
                                   <div 
                                     key={accrual.id} 
-                                    className={`flex items-center gap-4 text-xs py-3 px-4 rounded-card hover:bg-white transition-colors border-b border-slate-100 last:border-0 ${
+                                    className={`flex items-center gap-4 text-xs py-2 px-4 rounded-card hover:bg-white transition-colors border-b border-slate-100 last:border-0 ${
                                       isSelected ? 'bg-indigo-50' : ''
                                     }`}
                                   >
@@ -960,6 +995,8 @@ export default function AccrualsPage() {
             })}
           </tbody>
         </table>
+          </div>
+        </div>
       </div>
 
       <Drawer
@@ -967,17 +1004,37 @@ export default function AccrualsPage() {
         onClose={() => {
           setIsDrawerOpen(false);
           setEditingAccrual(null);
+          setIsBulkEdit(false);
         }}
         title={editingAccrual ? 'Редактировать начисление' : 'Добавить начисление'}
+        footer={
+          <div className="flex gap-3 justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setIsDrawerOpen(false);
+                setEditingAccrual(null);
+                setIsBulkEdit(false);
+              }}
+              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-card hover:bg-slate-50 transition-colors"
+            >
+              Отмена
+            </button>
+            <button
+              type="submit"
+              form="accrual-form"
+              disabled={formLoading}
+              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-card hover:bg-indigo-700 transition-colors disabled:opacity-50"
+            >
+              {formLoading ? 'Сохранение...' : 'Сохранить'}
+            </button>
+          </div>
+        }
       >
         <AccrualForm
           accrual={editingAccrual}
-          onSave={handleSave}
-          onCancel={() => {
-            setIsDrawerOpen(false);
-            setEditingAccrual(null);
-            setIsBulkEdit(false);
-          }}
+          onSubmit={handleSubmit}
+          loading={formLoading}
           isBulkEdit={isBulkEdit}
           selectedCount={selectedAccruals.size}
         />

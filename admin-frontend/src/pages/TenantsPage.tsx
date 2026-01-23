@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { PlusIcon, UserIcon, BriefcaseIcon } from '@heroicons/react/24/outline';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, Users, Briefcase, Search, ChevronUp, ChevronDown } from 'lucide-react';
 import client from '../api/client';
 import Drawer from '../components/Drawer';
 import TenantForm from '../components/TenantForm';
-import TableActions from '../components/TableActions';
+import ActionsMenu from '../components/ui/ActionsMenu';
 import PeriodFilterBar from '../components/PeriodFilterBar';
+import { useDensity } from '../contexts/DensityContext';
+import { useCompactStyles } from '../hooks/useCompactStyles';
 import { DatePreset } from '../utils/datePresets';
 
 interface Tenant {
-  id: number;
+  id?: number;
   name: string;
   type: string;
   type_display?: string;
@@ -20,7 +22,12 @@ interface Tenant {
   comment: string;
 }
 
+type SortField = 'name' | 'type' | 'email' | 'phone' | 'inn';
+type SortDirection = 'asc' | 'desc';
+
 export default function TenantsPage() {
+  const { isCompact } = useDensity();
+  const compact = useCompactStyles();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -29,6 +36,8 @@ export default function TenantsPage() {
     type: '',
     search: '',
   });
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [dateFilter, setDateFilter] = useState<{ preset: DatePreset | null; from: string | null; to: string | null }>({
     preset: null,
     from: null,
@@ -37,7 +46,7 @@ export default function TenantsPage() {
 
   useEffect(() => {
     fetchTenants();
-  }, [filters, dateFilter]);
+  }, [filters, dateFilter, sortField, sortDirection]);
 
   const fetchTenants = async () => {
     try {
@@ -49,6 +58,12 @@ export default function TenantsPage() {
       
       if (dateFilter.from) params.append('created_at__gte', dateFilter.from);
       if (dateFilter.to) params.append('created_at__lte', dateFilter.to);
+      
+      // Сортировка
+      if (sortField) {
+        const ordering = sortDirection === 'desc' ? `-${sortField}` : sortField;
+        params.append('ordering', ordering);
+      }
       
       if (params.toString()) {
         url += `?${params.toString()}`;
@@ -63,11 +78,45 @@ export default function TenantsPage() {
     }
   };
 
-  const handleSave = () => {
-    setIsDrawerOpen(false);
-    setEditingTenant(null);
-    fetchTenants();
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
   };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return null;
+    return sortDirection === 'asc' ? (
+      <ChevronUp className="h-3 w-3 inline-block ml-1" />
+    ) : (
+      <ChevronDown className="h-3 w-3 inline-block ml-1" />
+    );
+  };
+
+  const [formLoading, setFormLoading] = useState(false);
+
+  const handleSubmit = useCallback(async (data: Tenant) => {
+    setFormLoading(true);
+    try {
+      if (editingTenant?.id) {
+        await client.patch(`/tenants/${editingTenant.id}/`, data);
+      } else {
+        await client.post('/tenants/', data);
+      }
+      setIsDrawerOpen(false);
+      setEditingTenant(null);
+      fetchTenants();
+    } catch (error: any) {
+      console.error('Error saving tenant:', error);
+      const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || 'Ошибка при сохранении';
+      alert(errorMessage);
+    } finally {
+      setFormLoading(false);
+    }
+  }, [editingTenant]);
 
   const handleEdit = (tenant: Tenant) => {
     setEditingTenant(tenant);
@@ -104,142 +153,201 @@ export default function TenantsPage() {
     }
   };
 
+  const getTypeIcon = useCallback((type: string) => {
+    if (type === 'tenant') return <Users className="h-4 w-4" />;
+    if (type === 'landlord') return <Briefcase className="h-4 w-4" />;
+    return <Users className="h-4 w-4" />;
+  }, []);
+
   if (loading) {
     return <div className="text-center py-12">Загрузка...</div>;
   }
 
-  const getTypeIcon = (type: string) => {
-    if (type === 'tenant') return <UserIcon className="h-4 w-4" />;
-    if (type === 'landlord') return <BriefcaseIcon className="h-4 w-4" />;
-    return <UserIcon className="h-4 w-4" />;
-  };
-
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-2">
+      {/* Header - Компактный */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Контрагенты</h1>
-          <p className="mt-1 text-sm text-slate-500">Управление контрагентами и контактами</p>
+          <h1 className={compact.sectionHeader + ' text-slate-900'}>Контрагенты</h1>
+          <p className={`mt-0.5 ${compact.smallText} text-slate-500`}>Управление контрагентами и контактами</p>
         </div>
         <button
           onClick={handleAdd}
-          className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-card shadow-medium hover:bg-indigo-700 transition-colors font-medium"
+          className={`flex items-center gap-1.5 ${compact.buttonPadding} bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition-colors ${compact.buttonText} font-medium`}
         >
-          <PlusIcon className="h-5 w-5" />
+          <Plus className={compact.iconSize} />
           Добавить
         </button>
       </div>
 
-      {/* Фильтры */}
-      <div className="bg-white p-4 rounded-card shadow-medium border border-slate-200">
-        <div className="flex items-end gap-3">
-          <div className="flex-shrink-0">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Период</label>
-            <PeriodFilterBar
-              value={dateFilter}
-              onChange={setDateFilter}
-              urlParamPrefix="created_at"
-            />
-          </div>
-          <div className="flex-shrink-0 min-w-[140px]">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Тип</label>
+      {/* Поиск - Компактный */}
+      <div className={`bg-white ${compact.cardPaddingSmall} rounded-lg shadow-sm border border-gray-200`}>
+        <div className="relative">
+          <Search className={`absolute left-2 top-1/2 transform -translate-y-1/2 ${compact.iconSizeSmall} text-gray-400`} />
+          <input
+            type="text"
+            placeholder="Название, email, телефон..."
+            value={filters.search}
+            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            className={`w-full pl-7 pr-2 ${compact.buttonPadding} ${compact.textSize} border border-gray-300 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`}
+          />
+        </div>
+      </div>
+
+      {/* Фильтры - Компактные */}
+      <div className={`bg-white ${compact.cardPaddingSmall} rounded-lg shadow-sm border border-gray-200`}>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className={`${compact.smallText} font-medium text-gray-700`}>Показать:</span>
+          <button
+            onClick={() => setFilters({ ...filters, type: '' })}
+            className={`px-2 py-1 ${compact.smallText} font-medium rounded-lg transition-colors ${
+              !filters.type
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Все контрагенты
+          </button>
+          <button
+            onClick={() => setFilters({ ...filters, type: 'tenant' })}
+            className={`px-2 py-1 ${compact.smallText} font-medium rounded-lg transition-colors ${
+              filters.type === 'tenant'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Арендаторы
+          </button>
+          <button
+            onClick={() => setFilters({ ...filters, type: 'landlord' })}
+            className={`px-2 py-1 ${compact.smallText} font-medium rounded-lg transition-colors ${
+              filters.type === 'landlord'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Арендодатели
+          </button>
+          <div className="ml-auto flex items-center gap-1.5">
             <select
               value={filters.type}
               onChange={(e) => setFilters({ ...filters, type: e.target.value })}
-              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
+              className={`px-1.5 py-1 ${compact.smallText} border border-gray-300 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`}
             >
-              <option value="">Все</option>
-              <option value="tenant">Арендатор</option>
-              <option value="landlord">Арендодатель</option>
+              <option value="">Все типы</option>
               <option value="staff">Сотрудник</option>
               <option value="master">Мастер</option>
               <option value="company_owner">Владелец компании</option>
               <option value="property_owner">Хозяин недвижимости</option>
               <option value="investor">Инвестор</option>
             </select>
-          </div>
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Поиск</label>
-            <input
-              type="text"
-              placeholder="Название, email, телефон..."
-              value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
+            <PeriodFilterBar
+              value={dateFilter}
+              onChange={setDateFilter}
+              urlParamPrefix="created_at"
             />
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-card shadow-medium border border-slate-200 overflow-hidden">
-        <table className="min-w-full divide-y divide-slate-200">
-          <thead className="bg-slate-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Название
+      {/* Таблица - Компактная */}
+      <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-100">
+            <thead className="bg-gray-50">
+              <tr>
+              <th 
+                className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider cursor-pointer hover:bg-gray-100 transition-colors`}
+                onClick={() => handleSort('name')}
+              >
+                Название {getSortIcon('name')}
               </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Тип
+              <th 
+                className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider cursor-pointer hover:bg-gray-100 transition-colors`}
+                onClick={() => handleSort('type')}
+              >
+                Тип {getSortIcon('type')}
               </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <th className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider hidden md:table-cell`}>
                 Контактное лицо
               </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Email
+              <th 
+                className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider cursor-pointer hover:bg-gray-100 transition-colors hidden lg:table-cell`}
+                onClick={() => handleSort('email')}
+              >
+                Email {getSortIcon('email')}
               </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Телефон
+              <th 
+                className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider cursor-pointer hover:bg-gray-100 transition-colors`}
+                onClick={() => handleSort('phone')}
+              >
+                Телефон {getSortIcon('phone')}
               </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                ИНН
+              <th 
+                className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider cursor-pointer hover:bg-gray-100 transition-colors hidden xl:table-cell`}
+                onClick={() => handleSort('inn')}
+              >
+                ИНН {getSortIcon('inn')}
               </th>
-              <th className="px-6 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <th className={`${compact.headerPadding} text-right ${compact.headerText} text-gray-500 tracking-wider`}>
                 Действия
               </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-slate-200">
-            {tenants.map((tenant) => (
-              <tr key={tenant.id} className="hover:bg-slate-50 transition-colors group">
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-slate-900">{tenant.name}</div>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-100">
+              {tenants.map((tenant) => (
+              <tr key={tenant.id} className={`hover:bg-slate-50 transition-colors group ${compact.rowHeight}`}>
+                <td className={`${compact.cellPadding} whitespace-nowrap`}>
+                  <div className={`${compact.tableText} font-medium text-slate-900`}>{tenant.name}</div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                <td className={`${compact.cellPadding} whitespace-nowrap`}>
+                  <div className={`flex items-center gap-1 ${compact.tableText} text-slate-600`}>
                     <span className="text-slate-400">{getTypeIcon(tenant.type)}</span>
                     {tenant.type_display || tenant.type}
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-slate-600">
-                    {tenant.contact_person || <span className="text-slate-400 italic">Not set</span>}
+                <td className={`${compact.cellPadding} whitespace-nowrap hidden md:table-cell`}>
+                  <div className={`${compact.tableText} text-slate-600`}>
+                    {tenant.contact_person || <span className="text-slate-400 italic">—</span>}
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-slate-600">
-                    {tenant.email || <span className="text-slate-400 italic">Not set</span>}
+                <td className={`${compact.cellPadding} whitespace-nowrap hidden lg:table-cell`}>
+                  <div className={`${compact.tableText} text-slate-600`}>
+                    {tenant.email || <span className="text-slate-400 italic">—</span>}
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-slate-600">
-                    {tenant.phone || <span className="text-slate-400 italic">Not set</span>}
+                <td className={`${compact.cellPadding} whitespace-nowrap`}>
+                  <div className={`${compact.tableText} text-slate-600`}>
+                    {tenant.phone || <span className="text-slate-400 italic">—</span>}
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-slate-600">
-                    {tenant.inn || <span className="text-slate-400 italic">Not set</span>}
+                <td className={`${compact.cellPadding} whitespace-nowrap hidden xl:table-cell`}>
+                  <div className={`${compact.tableText} text-slate-600`}>
+                    {tenant.inn || <span className="text-slate-400 italic">—</span>}
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right">
-                  <TableActions
-                    onEdit={() => handleEdit(tenant)}
-                    onDelete={() => handleDelete(tenant)}
-                  />
+                <td className={`${compact.cellPadding} whitespace-nowrap text-right`}>
+                  <div className="flex justify-end items-center gap-1">
+                    <button
+                      onClick={() => handleEdit(tenant)}
+                      className={`px-2 py-0.5 ${compact.smallText} font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors`}
+                      title="Редактировать"
+                    >
+                      Редактировать
+                    </button>
+                    <ActionsMenu
+                      items={[
+                        { label: 'Удалить', onClick: () => handleDelete(tenant), variant: 'danger' },
+                      ]}
+                      alwaysVisible={true}
+                    />
+                  </div>
                 </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <Drawer
@@ -249,14 +357,33 @@ export default function TenantsPage() {
           setEditingTenant(null);
         }}
         title={editingTenant ? 'Редактировать контрагента' : 'Добавить контрагента'}
+        footer={
+          <div className="flex gap-3 justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setIsDrawerOpen(false);
+                setEditingTenant(null);
+              }}
+              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-card hover:bg-slate-50 transition-colors"
+            >
+              Отмена
+            </button>
+            <button
+              type="submit"
+              form="tenant-form"
+              disabled={formLoading}
+              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-card hover:bg-indigo-700 transition-colors disabled:opacity-50"
+            >
+              {formLoading ? 'Сохранение...' : 'Сохранить'}
+            </button>
+          </div>
+        }
       >
         <TenantForm
           tenant={editingTenant}
-          onSave={handleSave}
-          onCancel={() => {
-            setIsDrawerOpen(false);
-            setEditingTenant(null);
-          }}
+          onSubmit={handleSubmit}
+          loading={formLoading}
         />
       </Drawer>
     </div>

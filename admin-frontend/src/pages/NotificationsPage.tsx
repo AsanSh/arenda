@@ -1,14 +1,16 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import client from '../api/client';
 import { formatAmount } from '../utils/currency';
 import { 
-  EnvelopeIcon, 
-  PhoneIcon, 
-  CheckCircleIcon, 
-  XCircleIcon,
-  PaperAirplaneIcon,
-  ChatBubbleLeftRightIcon
-} from '@heroicons/react/24/outline';
+  Mail, 
+  Phone, 
+  Send, 
+  MessageSquare,
+  AlertCircle,
+  Users,
+  CheckSquare,
+  Square
+} from 'lucide-react';
 
 interface NotificationSetting {
   id?: number;
@@ -110,22 +112,67 @@ export default function NotificationsPage() {
     }
   };
 
-  const filteredTenants = useMemo(() => {
-    if (!searchQuery) return tenants;
-    const query = searchQuery.toLowerCase();
-    return tenants.filter(t => 
-      t.name.toLowerCase().includes(query) ||
-      t.email?.toLowerCase().includes(query) ||
-      t.phone?.toLowerCase().includes(query)
-    );
-  }, [tenants, searchQuery]);
-
   const readyToSendTenants = useMemo(() => {
     return overdueTenants.map(ot => {
       const tenant = tenants.find(t => t.id === ot.tenant_id);
       return { ...ot, tenant };
     }).filter(item => item.tenant);
   }, [overdueTenants, tenants]);
+
+  // Auto-filter recipients based on template variables
+  type FilteredTenant = {
+    id: number;
+    name: string;
+    email: string;
+    phone: string;
+    type: 'tenant' | 'landlord';
+    isOverdue: boolean;
+    overdueData: OverdueTenant | null;
+  };
+
+  const autoFilteredTenants = useMemo<FilteredTenant[]>(() => {
+    // Extract variables from template
+    const templateVars = template.match(/\{\{(\w+)\}\}/g) || [];
+    const varNames = templateVars.map(v => v.replace(/[{}]/g, ''));
+    
+    // If template contains overdue-related variables, show overdue tenants first
+    const hasOverdueVars = varNames.some(v => 
+      ['amount', 'due_date', 'date', 'overdue_days'].includes(v)
+    );
+    
+    if (hasOverdueVars && readyToSendTenants.length > 0) {
+      return readyToSendTenants.map(item => ({
+        id: item.tenant_id,
+        name: item.tenant_name,
+        email: item.tenant?.email || '',
+        phone: item.tenant?.phone || '',
+        type: (item.tenant?.type || 'tenant') as 'tenant' | 'landlord',
+        isOverdue: true,
+        overdueData: item,
+      }));
+    }
+    
+    return tenants.map(t => ({
+      id: t.id,
+      name: t.name,
+      email: t.email || '',
+      phone: t.phone || '',
+      type: t.type,
+      isOverdue: false,
+      overdueData: null,
+    }));
+  }, [template, tenants, readyToSendTenants]);
+
+  const filteredTenants = useMemo<FilteredTenant[]>(() => {
+    const baseList = autoFilteredTenants;
+    if (!searchQuery) return baseList;
+    const query = searchQuery.toLowerCase();
+    return baseList.filter((t: FilteredTenant) => 
+      t.name.toLowerCase().includes(query) ||
+      t.email?.toLowerCase().includes(query) ||
+      t.phone?.toLowerCase().includes(query)
+    );
+  }, [autoFilteredTenants, searchQuery]);
 
   const handleToggleTenant = (tenantId: number) => {
     const newSet = new Set(selectedTenants);
@@ -143,24 +190,35 @@ export default function NotificationsPage() {
     setSelectedTenants(newSet);
   };
 
-  const renderTemplatePreview = () => {
-    const sampleData = {
-      tenant_name: 'Иван Иванов',
-      contract_number: 'Д-2024-001',
-      due_date: new Date().toLocaleDateString('ru-RU'),
-      amount: '50 000',
-      currency: 'с',
+  const renderTemplatePreview = useCallback(() => {
+    // Use first selected tenant's data if available, otherwise use sample
+    const firstSelected = filteredTenants.find((t: FilteredTenant) => selectedTenants.has(t.id));
+    const sampleData: Record<string, string> = {
+      tenant_name: firstSelected?.name || 'Иван Иванов',
+      name: firstSelected?.name || 'Иван Иванов', // Alias for {{name}}
+      contract_number: firstSelected?.overdueData?.accruals[0]?.contract_number || 'Д-2024-001',
+      due_date: firstSelected?.overdueData?.accruals[0]?.due_date 
+        ? new Date(firstSelected.overdueData.accruals[0].due_date).toLocaleDateString('ru-RU')
+        : new Date().toLocaleDateString('ru-RU'),
+      date: firstSelected?.overdueData?.accruals[0]?.due_date 
+        ? new Date(firstSelected.overdueData.accruals[0].due_date).toLocaleDateString('ru-RU')
+        : new Date().toLocaleDateString('ru-RU'), // Alias for {{date}}
+      amount: firstSelected?.overdueData?.total_overdue 
+        ? formatAmount(firstSelected.overdueData.total_overdue).replace(/\s/g, '')
+        : '50 000',
+      currency: firstSelected?.overdueData?.accruals[0]?.currency || 'с',
       property_name: 'Офис 101',
       property_address: 'ул. Примерная, 1',
+      overdue_days: firstSelected?.overdueData?.oldest_overdue_days?.toString() || '28',
     };
 
     let preview = template;
     Object.entries(sampleData).forEach(([key, value]) => {
-      preview = preview.replace(new RegExp(`{{${key}}}`, 'g'), String(value));
+      preview = preview.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value));
     });
 
     return preview;
-  };
+  }, [template, filteredTenants, selectedTenants]);
 
   const handleSaveSettings = async () => {
     try {
@@ -217,16 +275,19 @@ export default function NotificationsPage() {
 
       {/* Split Screen Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Panel: Focus List */}
+        {/* Left Panel: Recipients List */}
         <div className="space-y-6">
-          {/* Ready to Send Section */}
-          <div className="bg-white rounded-2xl shadow-soft border border-slate-200 p-6">
+          {/* Scenario 1: Overdue (Top Priority) */}
+          <div className="bg-white rounded-card shadow-medium border border-slate-200 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-slate-900">Готово к отправке</h2>
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+                <h2 className="text-lg font-semibold text-slate-900">Сценарий 1: Просроченные платежи</h2>
+              </div>
               {readyToSendTenants.length > 0 && (
                 <button
                   onClick={handleSelectAllReady}
-                  className="text-sm text-primary-600 hover:text-primary-700"
+                  className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
                 >
                   Выбрать все
                 </button>
@@ -237,11 +298,11 @@ export default function NotificationsPage() {
                 Нет контрагентов с просроченными платежами
               </div>
             ) : (
-              <div className="space-y-2 max-h-96 overflow-y-auto">
+              <div className="space-y-1.5 max-h-96 overflow-y-auto">
                 {readyToSendTenants.map((item) => (
                   <div
                     key={item.tenant_id}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                    className={`p-3 rounded-card border transition-all cursor-pointer ${
                       selectedTenants.has(item.tenant_id)
                         ? 'border-primary-500 bg-primary-50'
                         : 'border-slate-200 hover:border-slate-300'
@@ -251,18 +312,23 @@ export default function NotificationsPage() {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <input
-                            type="checkbox"
-                            checked={selectedTenants.has(item.tenant_id)}
-                            onChange={() => handleToggleTenant(item.tenant_id)}
-                            className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                          />
+                          {selectedTenants.has(item.tenant_id) ? (
+                            <CheckSquare 
+                              className="h-5 w-5 text-indigo-600 cursor-pointer" 
+                              onClick={() => handleToggleTenant(item.tenant_id)}
+                            />
+                          ) : (
+                            <Square 
+                              className="h-5 w-5 text-slate-400 cursor-pointer hover:text-indigo-600" 
+                              onClick={() => handleToggleTenant(item.tenant_id)}
+                            />
+                          )}
                           <h3 className="font-medium text-slate-900">{item.tenant_name}</h3>
                         </div>
-                        <div className="text-sm text-slate-600 ml-6">
+                        <div className="text-sm text-slate-600 ml-7">
                           Просрочено: {formatAmount(item.total_overdue)} с · {item.accruals_count} начислений
                         </div>
-                        <div className="text-xs text-red-600 ml-6 mt-1">
+                        <div className="text-xs text-red-600 ml-7 mt-1 font-medium">
                           {item.oldest_overdue_days} дней просрочки
                         </div>
                       </div>
@@ -273,9 +339,12 @@ export default function NotificationsPage() {
             )}
           </div>
 
-          {/* All Counterparties Section */}
-          <div className="bg-white rounded-2xl shadow-soft border border-slate-200 p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Все контрагенты</h2>
+          {/* Scenario 2: General */}
+          <div className="bg-white rounded-card shadow-medium border border-slate-200 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Users className="h-5 w-5 text-slate-600" />
+              <h2 className="text-lg font-semibold text-slate-900">Сценарий 2: Общая рассылка</h2>
+            </div>
             <div className="mb-4">
               <input
                 type="text"
@@ -285,11 +354,11 @@ export default function NotificationsPage() {
                 className="w-full px-4 py-2.5 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               />
             </div>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {filteredTenants.map((tenant) => (
+            <div className="space-y-1.5 max-h-96 overflow-y-auto">
+              {filteredTenants.map((tenant: FilteredTenant) => (
                 <div
                   key={tenant.id}
-                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                  className={`p-3 rounded-card border transition-all cursor-pointer ${
                     selectedTenants.has(tenant.id)
                       ? 'border-primary-500 bg-primary-50'
                       : 'border-slate-200 hover:border-slate-300'
@@ -299,24 +368,29 @@ export default function NotificationsPage() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <input
-                          type="checkbox"
-                          checked={selectedTenants.has(tenant.id)}
-                          onChange={() => handleToggleTenant(tenant.id)}
-                          className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                        />
+                        {selectedTenants.has(tenant.id) ? (
+                          <CheckSquare 
+                            className="h-5 w-5 text-indigo-600 cursor-pointer" 
+                            onClick={() => handleToggleTenant(tenant.id)}
+                          />
+                        ) : (
+                          <Square 
+                            className="h-5 w-5 text-slate-400 cursor-pointer hover:text-indigo-600" 
+                            onClick={() => handleToggleTenant(tenant.id)}
+                          />
+                        )}
                         <h3 className="font-medium text-slate-900">{tenant.name}</h3>
                       </div>
-                      <div className="text-sm text-slate-600 ml-6 space-y-1">
+                      <div className="text-sm text-slate-600 ml-7 space-y-1">
                         {tenant.email && (
-                          <div className="flex items-center gap-1">
-                            <EnvelopeIcon className="w-4 h-4" />
+                          <div className="flex items-center gap-1.5">
+                            <Mail className="w-4 h-4" />
                             {tenant.email}
                           </div>
                         )}
                         {tenant.phone && (
-                          <div className="flex items-center gap-1">
-                            <PhoneIcon className="w-4 h-4" />
+                          <div className="flex items-center gap-1.5">
+                            <Phone className="w-4 h-4" />
                             {tenant.phone}
                           </div>
                         )}
@@ -332,7 +406,7 @@ export default function NotificationsPage() {
         {/* Right Panel: Settings & Preview */}
         <div className="space-y-6">
           {/* Trigger Panel */}
-          <div className="bg-white rounded-2xl shadow-soft border border-slate-200 p-6">
+          <div className="bg-white rounded-card shadow-medium border border-slate-200 p-6">
             <h2 className="text-lg font-semibold text-slate-900 mb-4">Настройки триггеров</h2>
             <div className="space-y-3">
               {[
@@ -364,43 +438,43 @@ export default function NotificationsPage() {
           </div>
 
           {/* Notification Type Selector */}
-          <div className="bg-white rounded-2xl shadow-soft border border-slate-200 p-6">
+          <div className="bg-white rounded-card shadow-medium border border-slate-200 p-6">
             <h2 className="text-lg font-semibold text-slate-900 mb-4">Способ доставки</h2>
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => setNotificationType('email')}
-                className={`p-4 rounded-xl border-2 transition-all ${
+                className={`p-4 rounded-card border-2 transition-all ${
                   notificationType === 'email'
-                    ? 'border-primary-500 bg-primary-50'
+                    ? 'border-indigo-500 bg-indigo-50'
                     : 'border-slate-200 hover:border-slate-300'
                 }`}
               >
-                <EnvelopeIcon className="w-6 h-6 mx-auto mb-2 text-slate-600" />
+                <Mail className="w-6 h-6 mx-auto mb-2 text-slate-600" />
                 <div className="text-sm font-medium text-slate-900">Email</div>
               </button>
               <button
                 onClick={() => setNotificationType('sms')}
-                className={`p-4 rounded-xl border-2 transition-all ${
+                className={`p-4 rounded-card border-2 transition-all ${
                   notificationType === 'sms'
-                    ? 'border-primary-500 bg-primary-50'
+                    ? 'border-indigo-500 bg-indigo-50'
                     : 'border-slate-200 hover:border-slate-300'
                 }`}
               >
-                <PhoneIcon className="w-6 h-6 mx-auto mb-2 text-slate-600" />
+                <Phone className="w-6 h-6 mx-auto mb-2 text-slate-600" />
                 <div className="text-sm font-medium text-slate-900">SMS</div>
               </button>
             </div>
           </div>
 
           {/* Template Editor */}
-          <div className="bg-white rounded-2xl shadow-soft border border-slate-200 p-6">
+          <div className="bg-white rounded-card shadow-medium border border-slate-200 p-6">
             <h2 className="text-lg font-semibold text-slate-900 mb-4">Редактор шаблона</h2>
             <div className="mb-3">
               <label className="block text-xs font-medium text-slate-700 mb-2">
                 Доступные переменные:
               </label>
               <div className="flex flex-wrap gap-2">
-                {['tenant_name', 'contract_number', 'due_date', 'amount', 'currency', 'property_name', 'property_address'].map((varName) => (
+                {['name', 'tenant_name', 'contract_number', 'due_date', 'date', 'amount', 'currency', 'property_name', 'property_address', 'overdue_days'].map((varName) => (
                   <button
                     key={varName}
                     onClick={() => {
@@ -416,7 +490,7 @@ export default function NotificationsPage() {
                         }, 0);
                       }
                     }}
-                    className="px-2 py-1 text-xs bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200"
+                    className="px-2 py-1 text-xs bg-slate-100 text-slate-700 rounded-card hover:bg-slate-200 transition-colors"
                   >
                     {`{{${varName}}}`}
                   </button>
@@ -428,17 +502,17 @@ export default function NotificationsPage() {
               rows={8}
               value={template}
               onChange={(e) => setTemplate(e.target.value)}
-              className="w-full px-4 py-3 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
+              className="w-full px-4 py-3 text-sm border border-slate-300 rounded-card focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
             />
           </div>
 
           {/* Preview */}
-          <div className="bg-white rounded-2xl shadow-soft border border-slate-200 p-6">
+          <div className="bg-white rounded-card shadow-medium border border-slate-200 p-6">
             <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
-              <ChatBubbleLeftRightIcon className="w-5 h-5" />
+              <MessageSquare className="w-5 h-5" />
               Предпросмотр
             </h2>
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+            <div className="bg-slate-50 rounded-card p-4 border border-slate-200">
               <div className="whitespace-pre-wrap text-sm text-slate-700 font-sans">
                 {renderTemplatePreview()}
               </div>
@@ -449,16 +523,16 @@ export default function NotificationsPage() {
           <div className="space-y-3">
             <button
               onClick={handleSaveSettings}
-              className="w-full px-4 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors shadow-sm"
+              className="w-full px-4 py-3 bg-indigo-600 text-white rounded-card font-medium hover:bg-indigo-700 transition-colors shadow-sm"
             >
               Сохранить настройки
             </button>
             <button
               onClick={handleSendBulk}
               disabled={selectedTenants.size === 0}
-              className="w-full px-4 py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full px-4 py-3 bg-green-600 text-white rounded-card font-medium hover:bg-green-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              <PaperAirplaneIcon className="w-5 h-5" />
+              <Send className="w-5 h-5" />
               Отправить выбранным ({selectedTenants.size})
             </button>
             {notificationType === 'sms' && (

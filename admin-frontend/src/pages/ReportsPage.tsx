@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import client from '../api/client';
 import { formatCurrency } from '../utils/currency';
 import PeriodFilterBar from '../components/PeriodFilterBar';
@@ -17,7 +17,7 @@ interface Tenant {
   name: string;
 }
 
-type ReportType = 'profit_loss' | 'cash_flow' | 'overdue';
+type ReportType = 'profit_loss' | 'cash_flow' | 'overdue' | 'forecast';
 
 export default function ReportsPage() {
   const [reportType, setReportType] = useState<ReportType>('profit_loss');
@@ -134,6 +134,21 @@ export default function ReportsPage() {
         params.delete('from');
         params.delete('to');
         params.delete('all_time');
+      } else if (reportType === 'forecast') {
+        url = '/forecast/calculate/';
+        // Для прогноза используем период, если не указан - по умолчанию сегодня + 30 дней
+        if (!isAllTime && (!fromDateStr || !toDateStr)) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const toDate = new Date(today);
+          toDate.setDate(toDate.getDate() + 30);
+          fromDateStr = today.toISOString().split('T')[0];
+          toDateStr = toDate.toISOString().split('T')[0];
+          params.delete('from');
+          params.delete('to');
+          params.append('from', fromDateStr);
+          params.append('to', toDateStr);
+        }
       }
       
       if (params.toString()) {
@@ -183,6 +198,23 @@ export default function ReportsPage() {
       csvContent += 'Контрагент,Просрочено,Дней просрочки,Количество начислений\n';
       (reportData.data || []).forEach((item: any) => {
         csvContent += `${item.tenant_name},${item.total_overdue},${item.oldest_overdue_days},${item.accruals_count}\n`;
+      });
+    } else if (reportType === 'forecast' && reportData) {
+      csvContent = 'Прогноз поступлений\n\n';
+      const periodText = reportData.period?.all_time 
+        ? 'Все время'
+        : reportData.period?.from && reportData.period?.to
+        ? `${reportData.period.from} - ${reportData.period.to}`
+        : '';
+      csvContent += `Период: ${periodText}\n\n`;
+      csvContent += 'Показатель,Сумма\n';
+      csvContent += `Начислено,${reportData.summary?.accrued || '0'}\n`;
+      csvContent += `Поступления,${reportData.summary?.received || '0'}\n`;
+      csvContent += `Остаток,${reportData.summary?.balance || '0'}\n`;
+      csvContent += `Просрочено,${reportData.summary?.overdue || '0'}\n\n`;
+      csvContent += 'Месяц,Начислено,Поступления,Остаток,Просрочено\n';
+      Object.entries(reportData.monthly || {}).forEach(([month, data]: [string, any]) => {
+        csvContent += `${month},${data.accrued || '0'},${data.received || '0'},${data.balance || '0'},${data.overdue || '0'}\n`;
       });
     }
 
@@ -545,6 +577,112 @@ export default function ReportsPage() {
     );
   };
 
+  const renderForecastReport = () => {
+    if (!reportData) return null;
+
+    const periodText = reportData.period?.all_time 
+      ? 'Все время'
+      : reportData.period?.from && reportData.period?.to
+      ? `${new Date(reportData.period.from).toLocaleDateString('ru-RU')} - ${new Date(reportData.period.to).toLocaleDateString('ru-RU')}`
+      : '';
+
+    return (
+      <div className="space-y-6">
+        {/* Сводные карточки */}
+        <div className="grid grid-cols-4 gap-6">
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-sm font-medium text-gray-500 mb-2">Начислено</h3>
+            <p className="text-3xl font-bold text-gray-900">
+              {formatCurrency(reportData.summary?.accrued || '0', 'KGS')}
+            </p>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-sm font-medium text-gray-500 mb-2">Поступления</h3>
+            <p className="text-3xl font-bold text-purple-600">
+              {formatCurrency(reportData.summary?.received || '0', 'KGS')}
+            </p>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-sm font-medium text-gray-500 mb-2">Остаток</h3>
+            <p className="text-3xl font-bold text-blue-600">
+              {formatCurrency(reportData.summary?.balance || '0', 'KGS')}
+            </p>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-sm font-medium text-gray-500 mb-2">Просрочено</h3>
+            <p className="text-3xl font-bold text-red-600">
+              {formatCurrency(reportData.summary?.overdue || '0', 'KGS')}
+            </p>
+          </div>
+        </div>
+
+        {/* Таблица по месяцам */}
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          <div className="px-6 py-4 border-b">
+            <h2 className="text-lg font-semibold text-gray-900">Прогноз по месяцам</h2>
+            {periodText && (
+              <p className="text-sm text-gray-500 mt-1">Период: {periodText}</p>
+            )}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 tracking-wider">
+                    Месяц
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 tracking-wider">
+                    Начислено
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 tracking-wider">
+                    Поступления
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 tracking-wider">
+                    Остаток
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 tracking-wider">
+                    Просрочено
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {Object.entries(reportData.monthly || {})
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([month, data]: [string, any], index) => {
+                    const [year, monthNum] = month.split('-');
+                    const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 
+                                      'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+                    const monthName = monthNames[parseInt(monthNum) - 1];
+                    const displayMonth = `${monthName} ${year}`;
+                    
+                    return (
+                      <tr key={month} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {displayMonth}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                          {formatCurrency(data.accrued || '0', 'KGS')}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-purple-600 font-medium">
+                          {formatCurrency(data.received || '0', 'KGS')}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-blue-600">
+                          {formatCurrency(data.balance || '0', 'KGS')}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-red-600">
+                          {formatCurrency(data.overdue || '0', 'KGS')}
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderOverdueReport = () => {
     if (!reportData) return null;
 
@@ -648,6 +786,7 @@ export default function ReportsPage() {
               { value: 'profit_loss', label: 'Прибыли и убытки' },
               { value: 'cash_flow', label: 'Движение денежных средств' },
               { value: 'overdue', label: 'Просроченные платежи' },
+              { value: 'forecast', label: 'Прогноз' },
             ]}
             value={reportType}
             onChange={(value) => setReportType(value as ReportType)}
@@ -674,6 +813,7 @@ export default function ReportsPage() {
                 value={dateFilter}
                 onChange={setDateFilter}
                 urlParamPrefix="report_date"
+                allowFuture={reportType === 'forecast'}
               />
             </div>
           )}
@@ -729,6 +869,7 @@ export default function ReportsPage() {
           {reportType === 'profit_loss' && renderProfitLossReport()}
           {reportType === 'cash_flow' && renderCashFlowReport()}
           {reportType === 'overdue' && renderOverdueReport()}
+          {reportType === 'forecast' && renderForecastReport()}
         </>
       )}
     </div>

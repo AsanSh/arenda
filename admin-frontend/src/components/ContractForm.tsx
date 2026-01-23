@@ -32,14 +32,22 @@ interface Contract {
 
 interface ContractFormProps {
   contract?: Contract | null;
-  onSave: () => void;
-  onCancel: () => void;
+  onSubmit: (data: any) => Promise<void>;
+  loading?: boolean;
+  isProlongation?: boolean;
 }
 
-export default function ContractForm({ contract, onSave, onCancel }: ContractFormProps) {
+interface DiscountPeriod {
+  start_date: string;
+  end_date: string;
+  discount_percent: string;
+  comment: string;
+}
+
+export default function ContractForm({ contract, onSubmit, loading = false, isProlongation = false }: ContractFormProps) {
   const [properties, setProperties] = useState<Property[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [discountPeriods, setDiscountPeriods] = useState<DiscountPeriod[]>([]);
   const [formData, setFormData] = useState({
     signed_at: contract?.signed_at || '',
     property: contract?.property?.toString() || '',
@@ -122,36 +130,39 @@ export default function ContractForm({ contract, onSave, onCancel }: ContractFor
     }
   };
 
+  const addDiscountPeriod = () => {
+    setDiscountPeriods([...discountPeriods, {
+      start_date: formData.start_date || '',
+      end_date: formData.end_date || '',
+      discount_percent: '',
+      comment: '',
+    }]);
+  };
+
+  const removeDiscountPeriod = (index: number) => {
+    setDiscountPeriods(discountPeriods.filter((_, i) => i !== index));
+  };
+
+  const updateDiscountPeriod = (index: number, field: keyof DiscountPeriod, value: string) => {
+    const updated = [...discountPeriods];
+    updated[index] = { ...updated[index], [field]: value };
+    setDiscountPeriods(updated);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-
-    try {
-      // Используем строки для точности, Django DecimalField сам преобразует
-      const payload = {
-        ...formData,
-        property: parseInt(formData.property),
-        tenant: parseInt(formData.tenant),
-        rent_amount: formData.rent_amount, // Отправляем как строку для точности
-        deposit_amount: formData.deposit_enabled ? formData.deposit_amount : '0',
-      };
-      
-      if (contract?.id) {
-        await client.patch(`/contracts/${contract.id}/`, payload);
-      } else {
-        await client.post('/contracts/', payload);
-      }
-      onSave();
-    } catch (error: any) {
-      console.error('Error saving contract:', error);
-      alert(error.response?.data?.detail || error.response?.data?.error || 'Ошибка при сохранении');
-    } finally {
-      setLoading(false);
-    }
+    const payload = {
+      ...formData,
+      property: parseInt(formData.property),
+      tenant: parseInt(formData.tenant),
+      rent_amount: formData.rent_amount,
+      deposit_amount: formData.deposit_enabled ? formData.deposit_amount : '0',
+    };
+    await onSubmit(payload);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form id="contract-form" onSubmit={handleSubmit} className="space-y-6">
       {/* Общая информация */}
       <div>
         <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-4 pb-2 border-b border-slate-200">
@@ -418,21 +429,94 @@ export default function ContractForm({ contract, onSave, onCancel }: ContractFor
         </div>
       </div>
 
-      <div className="flex justify-end space-x-3 pt-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 text-sm border border-slate-300 rounded-xl text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-        >
-          Отмена
-        </button>
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-4 py-2 text-sm rounded-xl text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-50"
-        >
-          {loading ? 'Сохранение...' : 'Сохранить'}
-        </button>
+      {/* Дополнительные условия */}
+      <div>
+        <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-4 pb-2 border-b border-slate-200">
+          Дополнительные условия
+        </h3>
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-xs text-blue-700">
+              <strong>Льготные периоды:</strong> Укажите периоды с уменьшенной арендной платой (например, для ремонта, каникул и т.д.)
+            </p>
+          </div>
+          
+          {discountPeriods.map((period, index) => (
+            <div key={index} className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+              <div className="flex justify-between items-center mb-3">
+                <h4 className="text-xs font-semibold text-slate-700">Льготный период #{index + 1}</h4>
+                <button
+                  type="button"
+                  onClick={() => removeDiscountPeriod(index)}
+                  className="text-xs text-red-600 hover:text-red-800"
+                >
+                  Удалить
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Дата начала льготы *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={period.start_date}
+                    onChange={(e) => updateDiscountPeriod(index, 'start_date', e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Дата окончания льготы *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={period.end_date}
+                    onChange={(e) => updateDiscountPeriod(index, 'end_date', e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Скидка (%)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={period.discount_percent}
+                    onChange={(e) => updateDiscountPeriod(index, 'discount_percent', e.target.value)}
+                    placeholder="0"
+                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Причина льготы
+                  </label>
+                  <input
+                    type="text"
+                    value={period.comment}
+                    onChange={(e) => updateDiscountPeriod(index, 'comment', e.target.value)}
+                    placeholder="Ремонт, каникулы и т.д."
+                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+          
+          <button
+            type="button"
+            onClick={addDiscountPeriod}
+            className="w-full px-4 py-2 text-sm font-medium text-indigo-600 border border-indigo-300 rounded-lg hover:bg-indigo-50 transition-colors"
+          >
+            + Добавить льготный период
+          </button>
+        </div>
       </div>
     </form>
   );

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { PlusIcon, ArrowRightIcon, ArrowLeftIcon, CurrencyDollarIcon, BanknotesIcon } from '@heroicons/react/24/outline';
+import { Search } from 'lucide-react';
 import client from '../api/client';
 import Drawer from '../components/Drawer';
 import AccountForm from '../components/AccountForm';
-import TableActions from '../components/TableActions';
+import ActionsMenu from '../components/ui/ActionsMenu';
 import { formatCurrency } from '../utils/currency';
 import PeriodFilterBar from '../components/PeriodFilterBar';
 import { DatePreset } from '../utils/datePresets';
@@ -67,6 +68,28 @@ export default function AccountsPage() {
       setLoading(false);
     }
   };
+
+  const [formLoading, setFormLoading] = useState(false);
+
+  const handleSubmit = useCallback(async (data: { id?: number; name: string; account_type: string; currency: string; owner?: number | null; account_number?: string; bank_name?: string; is_active: boolean; comment?: string }) => {
+    setFormLoading(true);
+    try {
+      if (editingAccount?.id) {
+        await client.patch(`/accounts/${editingAccount.id}/`, data);
+      } else {
+        await client.post('/accounts/', data);
+      }
+      setIsDrawerOpen(false);
+      setEditingAccount(null);
+      fetchAccounts();
+    } catch (error: any) {
+      console.error('Error saving account:', error);
+      const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || 'Ошибка при сохранении';
+      alert(errorMessage);
+    } finally {
+      setFormLoading(false);
+    }
+  }, [editingAccount]);
 
   const handleSave = () => {
     setIsDrawerOpen(false);
@@ -138,106 +161,125 @@ export default function AccountsPage() {
         </button>
       </div>
 
-      {/* Фильтры */}
-      <div className="bg-white p-4 rounded-card shadow-medium border border-slate-200">
-        <div className="flex items-end gap-3">
-          <div className="flex-shrink-0">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Период</label>
+      {/* Поиск - сверху отдельно */}
+      <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-200 mb-3">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Название, номер счета..."
+            value={filters.search}
+            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
+        </div>
+      </div>
+
+      {/* Фильтры в виде вкладок */}
+      <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-200 mb-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-gray-700 mr-1">Показать:</span>
+          <button
+            onClick={() => setFilters({ ...filters, account_type: '', currency: '' })}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+              !filters.account_type && !filters.currency
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Все счета
+          </button>
+          <button
+            onClick={() => setFilters({ ...filters, account_type: 'bank' })}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+              filters.account_type === 'bank'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Банковские
+          </button>
+          <button
+            onClick={() => setFilters({ ...filters, account_type: 'cash' })}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+              filters.account_type === 'cash'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Наличные
+          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <select
+              value={filters.currency}
+              onChange={(e) => setFilters({ ...filters, currency: e.target.value })}
+              className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="">Все валюты</option>
+              <option value="KGS">KGS</option>
+              <option value="USD">USD</option>
+              <option value="RUB">RUB</option>
+              <option value="EUR">EUR</option>
+            </select>
             <PeriodFilterBar
               value={dateFilter}
               onChange={setDateFilter}
               urlParamPrefix="created_at"
             />
           </div>
-          <div className="flex-shrink-0 min-w-[120px]">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Тип счета</label>
-            <select
-              value={filters.account_type}
-              onChange={(e) => setFilters({ ...filters, account_type: e.target.value })}
-              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="">Все</option>
-              <option value="cash">Наличные</option>
-              <option value="bank">Банковский счет</option>
-            </select>
-          </div>
-          <div className="flex-shrink-0 min-w-[100px]">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Валюта</label>
-            <select
-              value={filters.currency}
-              onChange={(e) => setFilters({ ...filters, currency: e.target.value })}
-              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="">Все</option>
-              <option value="KGS">KGS</option>
-              <option value="USD">USD</option>
-              <option value="RUB">RUB</option>
-              <option value="EUR">EUR</option>
-            </select>
-          </div>
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Поиск</label>
-            <input
-              type="text"
-              placeholder="Название, номер счета..."
-              value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-            />
-          </div>
         </div>
       </div>
 
-      {/* Balance Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-card shadow-medium border border-slate-200 relative overflow-hidden group hover:shadow-large transition-shadow">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-full -mr-16 -mt-16 opacity-50"></div>
+      {/* Balance Cards - уменьшены размеры */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+        <div className="bg-white p-3 md:p-4 rounded-card shadow-medium border border-slate-200 relative overflow-hidden group hover:shadow-large transition-shadow">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-full -mr-10 -mt-10 opacity-50"></div>
           <div className="relative">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-2">
               <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wide">Общий баланс (сомы)</h3>
-              <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center">
-                <BanknotesIcon className="h-6 w-6 text-indigo-600" />
+              <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                <BanknotesIcon className="h-4 w-4 text-indigo-600" />
               </div>
             </div>
-            <p className="text-3xl font-bold text-slate-900 mb-3">
+            <p className="text-xl md:text-2xl font-semibold text-slate-900 mb-2">
               {formatCurrency(totalKGS, 'KGS')}
             </p>
             {/* Simple sparkline */}
-            <div className="h-12 flex items-end gap-1">
+            <div className="h-8 flex items-end gap-1">
               {sparklineData.map((value, idx) => {
                 const height = (value / Math.max(...sparklineData)) * 100;
                 return (
                   <div
                     key={idx}
                     className="flex-1 bg-gradient-to-t from-indigo-500 to-indigo-400 rounded-t"
-                    style={{ height: `${height}%`, minHeight: '4px' }}
+                    style={{ height: `${height}%`, minHeight: '3px' }}
                   />
                 );
               })}
             </div>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-card shadow-medium border border-slate-200 relative overflow-hidden group hover:shadow-large transition-shadow">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-50 to-green-100 rounded-full -mr-16 -mt-16 opacity-50"></div>
+        <div className="bg-white p-3 md:p-4 rounded-card shadow-medium border border-slate-200 relative overflow-hidden group hover:shadow-large transition-shadow">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-green-50 to-green-100 rounded-full -mr-10 -mt-10 opacity-50"></div>
           <div className="relative">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-2">
               <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wide">Общий баланс (доллары)</h3>
-              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                <CurrencyDollarIcon className="h-6 w-6 text-green-600" />
+              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                <CurrencyDollarIcon className="h-4 w-4 text-green-600" />
               </div>
             </div>
-            <p className="text-3xl font-bold text-slate-900 mb-3">
+            <p className="text-xl md:text-2xl font-semibold text-slate-900 mb-2">
               {formatCurrency(totalUSD, 'USD')}
             </p>
             {/* Simple sparkline */}
-            <div className="h-12 flex items-end gap-1">
+            <div className="h-8 flex items-end gap-1">
               {sparklineData.map((value, idx) => {
                 const height = (value / Math.max(...sparklineData)) * 100;
                 return (
                   <div
                     key={idx}
                     className="flex-1 bg-gradient-to-t from-green-500 to-green-400 rounded-t"
-                    style={{ height: `${height}%`, minHeight: '4px' }}
+                    style={{ height: `${height}%`, minHeight: '3px' }}
                   />
                 );
               })}
@@ -247,55 +289,57 @@ export default function AccountsPage() {
       </div>
 
       <div className="bg-white rounded-card shadow-medium border border-slate-200 overflow-hidden">
-        <table className="min-w-full divide-y divide-slate-200">
+        <div className="overflow-x-auto -mx-4 md:mx-0">
+          <div className="inline-block min-w-full align-middle">
+            <table className="min-w-full divide-y divide-slate-200">
           <thead className="bg-slate-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Название
               </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Тип
               </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Валюта
               </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Владелец
               </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Баланс
               </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Статус
               </th>
-              <th className="px-6 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Действия
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-slate-200">
+          <tbody className="bg-white divide-y divide-slate-100">
             {accounts.map((account) => (
               <tr key={account.id} className="hover:bg-slate-50 transition-colors group">
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-3 py-2 whitespace-nowrap">
                   <div className="text-sm font-medium text-slate-900">{account.name}</div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-slate-600">
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <div className="text-xs text-slate-600">
                     {account.account_type === 'cash' ? 'Наличные' : 'Банковский счет'}
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-slate-600">{account.currency}</div>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <div className="text-xs text-slate-600">{account.currency}</div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-slate-600">{account.owner_name || 'Общий'}</div>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <div className="text-xs text-slate-600">{account.owner_name || 'Общий'}</div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-3 py-2 whitespace-nowrap">
                   <div className="text-sm font-semibold text-slate-900">
                     {formatCurrency(account.balance, account.currency)}
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-4 py-2 whitespace-nowrap">
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     account.is_active 
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
@@ -305,19 +349,32 @@ export default function AccountsPage() {
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right">
-                  <TableActions
-                    onView={() => {
-                      setSelectedAccount(account);
-                      setIsDrawerOpen(true);
-                    }}
-                    onEdit={() => handleEdit(account)}
-                    onDelete={() => handleDelete(account)}
-                  />
+                  <div className="flex justify-end items-center gap-2">
+                    <button
+                      onClick={() => handleEdit(account)}
+                      className="px-2 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors"
+                      title="Редактировать"
+                    >
+                      Редактировать
+                    </button>
+                    <ActionsMenu
+                      items={[
+                        { label: 'Просмотр', onClick: () => {
+                          setSelectedAccount(account);
+                          setIsDrawerOpen(true);
+                        }},
+                        { label: 'Удалить', onClick: () => handleDelete(account), variant: 'danger' },
+                      ]}
+                      alwaysVisible={true}
+                    />
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+          </div>
+        </div>
       </div>
 
       <Drawer
@@ -340,10 +397,12 @@ export default function AccountsPage() {
               Отмена
             </button>
             <button
-              onClick={handleSave}
-              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-card hover:bg-indigo-700 transition-colors"
+              type="submit"
+              form="account-form"
+              disabled={formLoading}
+              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-card hover:bg-indigo-700 transition-colors disabled:opacity-50"
             >
-              Сохранить
+              {formLoading ? 'Сохранение...' : 'Сохранить'}
             </button>
           </div>
         ) : undefined}
@@ -357,11 +416,8 @@ export default function AccountsPage() {
         ) : (
           <AccountForm
             account={editingAccount}
-            onSave={handleSave}
-            onCancel={() => {
-              setIsDrawerOpen(false);
-              setEditingAccount(null);
-            }}
+            onSubmit={handleSubmit}
+            loading={formLoading}
           />
         )}
       </Drawer>

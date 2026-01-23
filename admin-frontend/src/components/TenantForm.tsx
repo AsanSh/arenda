@@ -25,11 +25,11 @@ const TENANT_TYPES = [
 
 interface TenantFormProps {
   tenant: Tenant | null;
-  onSave: () => void;
-  onCancel: () => void;
+  onSubmit: (data: Tenant) => Promise<void>;
+  loading?: boolean;
 }
 
-export default function TenantForm({ tenant, onSave, onCancel }: TenantFormProps) {
+export default function TenantForm({ tenant, onSubmit, loading = false }: TenantFormProps) {
   const [formData, setFormData] = useState<Tenant>({
     name: '',
     type: 'tenant',
@@ -40,7 +40,6 @@ export default function TenantForm({ tenant, onSave, onCancel }: TenantFormProps
     address: '',
     comment: '',
   });
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (tenant) {
@@ -50,25 +49,11 @@ export default function TenantForm({ tenant, onSave, onCancel }: TenantFormProps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-
-    try {
-      if (tenant?.id) {
-        await client.patch(`/tenants/${tenant.id}/`, formData);
-      } else {
-        await client.post('/tenants/', formData);
-      }
-      onSave();
-    } catch (error) {
-      console.error('Error saving tenant:', error);
-      alert('Ошибка при сохранении');
-    } finally {
-      setLoading(false);
-    }
+    await onSubmit(formData);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-2">
+    <form id="tenant-form" onSubmit={handleSubmit} className="space-y-2">
       <div>
         <label className="block text-xs font-medium text-gray-700 mb-0.5">
           Название *
@@ -174,22 +159,6 @@ export default function TenantForm({ tenant, onSave, onCancel }: TenantFormProps
         />
       </div>
 
-      <div className="flex justify-end space-x-2 pt-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-3 py-1.5 text-xs border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
-        >
-          Отмена
-        </button>
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-3 py-1.5 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
-        >
-          {loading ? 'Сохранение...' : 'Сохранить'}
-        </button>
-      </div>
     </form>
   );
 }

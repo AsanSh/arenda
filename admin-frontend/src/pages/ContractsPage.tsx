@@ -1,14 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { PlusIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, ArrowRight, Search, ChevronUp, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import Drawer from '../components/Drawer';
 import ContractForm from '../components/ContractForm';
-import TableActions from '../components/TableActions';
+import ActionsMenu from '../components/ui/ActionsMenu';
 import { formatCurrency } from '../utils/currency';
 import PeriodFilterBar from '../components/PeriodFilterBar';
 import CounterpartyFilter from '../components/CounterpartyFilter';
+import { useDensity } from '../contexts/DensityContext';
+import { useCompactStyles } from '../hooks/useCompactStyles';
 import { DatePreset } from '../utils/datePresets';
+
+type SortField = 'number' | 'property_name' | 'tenant_name' | 'start_date' | 'rent_amount' | 'status';
+type SortDirection = 'asc' | 'desc';
 
 interface Contract {
   id: number;
@@ -26,6 +31,8 @@ interface Contract {
 }
 
 export default function ContractsPage() {
+  const { isCompact } = useDensity();
+  const compact = useCompactStyles();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -52,6 +59,8 @@ export default function ContractsPage() {
     status: '',
     search: '',
   });
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [tenants, setTenants] = useState<{ id: number; name: string }[]>([]);
   const [selectedTenants, setSelectedTenants] = useState<number[]>([]);
   const [dateFilter, setDateFilter] = useState<{ preset: DatePreset | null; from: string | null; to: string | null }>({
@@ -63,7 +72,7 @@ export default function ContractsPage() {
   useEffect(() => {
     fetchContracts();
     fetchTenants();
-  }, [filters, selectedTenants, dateFilter]);
+  }, [filters, selectedTenants, dateFilter, sortField, sortDirection]);
 
   const fetchTenants = async () => {
     try {
@@ -89,6 +98,12 @@ export default function ContractsPage() {
       if (dateFilter.from) params.append('signed_at__gte', dateFilter.from);
       if (dateFilter.to) params.append('signed_at__lte', dateFilter.to);
       
+      // Сортировка
+      if (sortField) {
+        const ordering = sortDirection === 'desc' ? `-${sortField}` : sortField;
+        params.append('ordering', ordering);
+      }
+      
       if (params.toString()) {
         url += `?${params.toString()}`;
       }
@@ -102,11 +117,27 @@ export default function ContractsPage() {
     }
   };
 
-  const handleSave = () => {
-    setIsDrawerOpen(false);
-    setEditingContract(null);
-    fetchContracts();
-  };
+  const [formLoading, setFormLoading] = useState(false);
+
+  const handleSubmit = useCallback(async (data: any) => {
+    setFormLoading(true);
+    try {
+      if (editingContract?.id) {
+        await client.patch(`/contracts/${editingContract.id}/`, data);
+      } else {
+        await client.post('/contracts/', data);
+      }
+      setIsDrawerOpen(false);
+      setEditingContract(null);
+      fetchContracts();
+    } catch (error: any) {
+      console.error('Error saving contract:', error);
+      const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || 'Ошибка при сохранении';
+      alert(errorMessage);
+    } finally {
+      setFormLoading(false);
+    }
+  }, [editingContract]);
 
   const handleEdit = async (contract: Contract) => {
     // Загружаем полные данные договора для редактирования
@@ -134,6 +165,45 @@ export default function ContractsPage() {
       setIsDrawerOpen(true);
     } catch (error) {
       console.error('Error fetching contract details:', error);
+    }
+  };
+
+  const handleProlongate = async (contract: Contract) => {
+    // Загружаем полные данные договора для пролонгации
+    try {
+      const response = await client.get(`/contracts/${contract.id}/`);
+      const fullContract = response.data;
+      
+      // Предлагаем новую дату окончания (продлеваем на тот же период)
+      const startDate = new Date(fullContract.start_date);
+      const endDate = new Date(fullContract.end_date);
+      const periodDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      const newEndDate = new Date(endDate);
+      newEndDate.setDate(newEndDate.getDate() + periodDays);
+      
+      const newEndDateStr = newEndDate.toISOString().split('T')[0];
+      
+      setEditingContract({
+        id: fullContract.id,
+        signed_at: fullContract.signed_at,
+        property: fullContract.property,
+        tenant: fullContract.tenant,
+        start_date: fullContract.end_date, // Новая дата начала = старая дата окончания
+        end_date: newEndDateStr,
+        rent_amount: fullContract.rent_amount,
+        currency: fullContract.currency,
+        exchange_rate_source: fullContract.exchange_rate_source,
+        due_day: fullContract.due_day,
+        deposit_enabled: fullContract.deposit_enabled,
+        deposit_amount: fullContract.deposit_amount || '',
+        advance_enabled: fullContract.advance_enabled,
+        advance_months: fullContract.advance_months || 1,
+        status: fullContract.status || 'draft',
+        comment: fullContract.comment || '',
+      });
+      setIsDrawerOpen(true);
+    } catch (error) {
+      console.error('Error fetching contract details for prolongation:', error);
     }
   };
 
@@ -167,16 +237,34 @@ export default function ContractsPage() {
     }
   };
 
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return null;
+    return sortDirection === 'asc' ? (
+      <ChevronUp className="h-3 w-3 inline-block ml-1" />
+    ) : (
+      <ChevronDown className="h-3 w-3 inline-block ml-1" />
+    );
+  };
+
   if (loading) {
     return <div className="text-center py-12">Загрузка...</div>;
   }
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 md:mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Договоры</h1>
-          <p className="mt-1 text-sm text-slate-500">Управление договорами аренды</p>
+          <h1 className={compact.sectionHeader + ' text-slate-900'}>Договоры</h1>
+          <p className="mt-1 text-xs md:text-sm text-slate-500">Управление договорами аренды</p>
         </div>
         <button
           onClick={() => {
@@ -185,109 +273,159 @@ export default function ContractsPage() {
           }}
           className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
         >
-          <PlusIcon className="h-5 w-5 mr-2" />
+          <Plus className="h-5 w-5 mr-2" />
           Добавить договор
         </button>
       </div>
 
-      {/* Фильтры */}
-      <div className="bg-white p-3 rounded-lg shadow mb-4">
-        <div className="flex items-end gap-3">
-          <div className="flex-shrink-0">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Период</label>
+      {/* Поиск - сверху отдельно */}
+      <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-200 mb-3">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="№ договора, объект..."
+            value={filters.search}
+            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
+        </div>
+      </div>
+
+      {/* Фильтры в виде вкладок */}
+      <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-200 mb-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-gray-700 mr-1">Показать:</span>
+          <button
+            onClick={() => setFilters({ ...filters, status: '' })}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+              !filters.status
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Все договоры
+          </button>
+          <button
+            onClick={() => setFilters({ ...filters, status: 'active' })}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+              filters.status === 'active'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Активные
+          </button>
+          <button
+            onClick={() => setFilters({ ...filters, status: 'draft' })}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+              filters.status === 'draft'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Черновики
+          </button>
+          <button
+            onClick={() => setFilters({ ...filters, status: 'ended' })}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+              filters.status === 'ended'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Завершенные
+          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="min-w-[180px]">
+              <CounterpartyFilter
+                counterparts={tenants}
+                selected={selectedTenants}
+                onChange={setSelectedTenants}
+              />
+            </div>
             <PeriodFilterBar
               value={dateFilter}
               onChange={setDateFilter}
               urlParamPrefix="signed_at"
             />
           </div>
-          <div className="flex-shrink-0 min-w-[180px]">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Контрагент</label>
-            <CounterpartyFilter
-              counterparts={tenants}
-              selected={selectedTenants}
-              onChange={setSelectedTenants}
-            />
-          </div>
-          <div className="flex-shrink-0 min-w-[120px]">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Статус</label>
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="">Все</option>
-              <option value="draft">Черновик</option>
-              <option value="active">Активен</option>
-              <option value="ended">Завершен</option>
-            </select>
-          </div>
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Поиск</label>
-            <input
-              type="text"
-              placeholder="№ договора, объект..."
-              value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
-            />
-          </div>
         </div>
       </div>
 
       <div className="bg-white shadow rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
+        <div className="overflow-x-auto -mx-4 md:mx-0">
+          <div className="inline-block min-w-full align-middle">
+            <table className="min-w-full divide-y divide-gray-100">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">
-                № договора
+              <th 
+                className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none cursor-pointer hover:bg-gray-100 transition-colors`}
+                onClick={() => handleSort('number')}
+              >
+                № договора {getSortIcon('number')}
               </th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">
-                Объект
+              <th 
+                className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none cursor-pointer hover:bg-gray-100 transition-colors`}
+                onClick={() => handleSort('property_name')}
+              >
+                Объект {getSortIcon('property_name')}
               </th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">
-                Арендатор
+              <th 
+                className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none cursor-pointer hover:bg-gray-100 transition-colors`}
+                onClick={() => handleSort('tenant_name')}
+              >
+                Арендатор {getSortIcon('tenant_name')}
               </th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">
-                Период
+              <th 
+                className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none cursor-pointer hover:bg-gray-100 transition-colors`}
+                onClick={() => handleSort('start_date')}
+              >
+                Период {getSortIcon('start_date')}
               </th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">
-                Ставка
+              <th 
+                className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none cursor-pointer hover:bg-gray-100 transition-colors`}
+                onClick={() => handleSort('rent_amount')}
+              >
+                Ставка {getSortIcon('rent_amount')}
               </th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">
-                Статус
+              <th 
+                className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none cursor-pointer hover:bg-gray-100 transition-colors`}
+                onClick={() => handleSort('status')}
+              >
+                Статус {getSortIcon('status')}
               </th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">
+              <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-right text-xs font-medium text-gray-500 tracking-wider leading-none`}>
                 Действия
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white divide-y divide-gray-100">
             {contracts.map((contract, index) => (
-              <tr key={contract.id} className={index % 2 === 0 ? 'bg-white' : 'bg-primary-50'}>
-                <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+              <tr key={contract.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-primary-50'} leading-none`}>
+                <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs font-medium text-gray-900 leading-tight`}>
                   {contract.number}
                 </td>
-                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs text-gray-500 leading-tight`}>
                   {contract.property_name}
                 </td>
-                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs text-gray-500 leading-tight`}>
                   {contract.tenant_name}
                 </td>
-                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs text-gray-500 leading-tight`}>
                   <span className="text-slate-600">
                     {new Date(contract.start_date).toLocaleDateString('ru-RU')}
                   </span>
-                  <ArrowRightIcon className="h-3 w-3 inline mx-1 text-slate-400" />
+                  <ArrowRight className="h-3 w-3 inline mx-1 text-slate-400" />
                   <span className="text-slate-600">
                     {new Date(contract.end_date).toLocaleDateString('ru-RU')}
                   </span>
                 </td>
-                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs text-gray-500 leading-tight`}>
                   {formatCurrency(contract.rent_amount, contract.currency)}
                 </td>
-                <td className="px-4 py-2 whitespace-nowrap">
-                  <span className={`px-2 py-1 text-xs rounded-full ${
+                <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap leading-tight`}>
+                  <span className={`${isCompact ? 'px-1 py-0' : 'px-1.5 py-0.5'} text-xs rounded-full leading-none ${
                     contract.status === 'active' ? 'bg-green-100 text-green-800' :
                     contract.status === 'ended' ? 'bg-gray-100 text-gray-800' :
                     'bg-yellow-100 text-yellow-800'
@@ -295,17 +433,31 @@ export default function ContractsPage() {
                     {contract.status}
                   </span>
                 </td>
-                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
-                  <TableActions
-                    onView={() => navigate(`/contracts/${contract.id}`)}
-                    onEdit={() => handleEdit(contract)}
-                    onDelete={() => handleDelete(contract)}
-                  />
+                <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-right leading-tight`}>
+                  <div className="flex justify-end items-center gap-2">
+                    <button
+                      onClick={() => handleEdit(contract)}
+                      className="px-2 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors"
+                      title="Редактировать"
+                    >
+                      Редактировать
+                    </button>
+                    <ActionsMenu
+                      items={[
+                        { label: 'Просмотр', onClick: () => navigate(`/contracts/${contract.id}`), icon: <ArrowRight className="h-4 w-4" /> },
+                        { label: 'Пролонгировать', onClick: () => handleProlongate(contract) },
+                        { label: 'Удалить', onClick: () => handleDelete(contract), variant: 'danger' },
+                      ]}
+                      alwaysVisible={true}
+                    />
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+          </div>
+        </div>
       </div>
 
       <Drawer
@@ -314,15 +466,47 @@ export default function ContractsPage() {
           setIsDrawerOpen(false);
           setEditingContract(null);
         }}
-        title={editingContract ? 'Редактировать договор' : 'Добавить договор'}
+        title={(() => {
+          if (!editingContract) return 'Добавить договор';
+          const originalContract = contracts.find(c => c.id === editingContract.id);
+          if (originalContract && new Date(editingContract.start_date) > new Date(originalContract.end_date)) {
+            return 'Пролонгировать договор';
+          }
+          return 'Редактировать договор';
+        })()}
+        footer={
+          <div className="flex gap-3 justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setIsDrawerOpen(false);
+                setEditingContract(null);
+              }}
+              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-card hover:bg-slate-50 transition-colors"
+            >
+              Отмена
+            </button>
+            <button
+              type="submit"
+              form="contract-form"
+              disabled={formLoading}
+              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-card hover:bg-indigo-700 transition-colors disabled:opacity-50"
+            >
+              {formLoading ? 'Сохранение...' : 'Сохранить'}
+            </button>
+          </div>
+        }
       >
         <ContractForm
           contract={editingContract}
-          onSave={handleSave}
-          onCancel={() => {
-            setIsDrawerOpen(false);
-            setEditingContract(null);
-          }}
+          onSubmit={handleSubmit}
+          loading={formLoading}
+          isProlongation={(() => {
+            if (!editingContract) return false;
+            const originalContract = contracts.find(c => c.id === editingContract.id);
+            if (!originalContract) return false;
+            return new Date(editingContract.start_date) > new Date(originalContract.end_date);
+          })()}
         />
       </Drawer>
     </div>

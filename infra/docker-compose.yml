@@ -38,8 +38,9 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - REACT_APP_API_URL=http://localhost:8000/api
+      - REACT_APP_API_URL=http://5.101.67.195:8000/api
       - CHOKIDAR_USEPOLLING=true
+      - HOST=0.0.0.0
     stdin_open: true
     tty: true
 

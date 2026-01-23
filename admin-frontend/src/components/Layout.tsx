@@ -1,20 +1,27 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
-  HomeIcon, 
-  UserGroupIcon,
-  DocumentTextIcon, 
-  CalculatorIcon,
-  CreditCardIcon,
-  BanknotesIcon,
-  WalletIcon,
-  ChartBarIcon,
-  Squares2X2Icon,
-  EnvelopeIcon,
-  Cog6ToothIcon,
-  QuestionMarkCircleIcon,
-  DocumentChartBarIcon
-} from '@heroicons/react/24/outline';
+  Home, 
+  Users,
+  FileText, 
+  Calculator,
+  CreditCard,
+  Banknote,
+  Wallet,
+  BarChart3,
+  LayoutDashboard,
+  Mail,
+  Settings,
+  HelpCircle,
+  FileBarChart,
+  Pin,
+  PinOff,
+  User,
+  LogOut,
+  Menu,
+  X
+} from 'lucide-react';
+import { useCompactStyles } from '../hooks/useCompactStyles';
 
 interface LayoutProps {
   children: ReactNode;
@@ -31,59 +38,136 @@ type NavigationItem =
     };
 
 const navigation: NavigationItem[] = [
-  { name: 'Дашборд', href: '/dashboard', icon: Squares2X2Icon },
-  { name: 'Счета', href: '/accounts', icon: WalletIcon },
-  { name: 'Депозиты', href: '/deposits', icon: BanknotesIcon },
+  { name: 'Дашборд', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Счета', href: '/accounts', icon: Wallet },
+  { name: 'Депозиты', href: '/deposits', icon: Banknote },
   { type: 'divider' },
-  { name: 'Недвижимость', href: '/properties', icon: HomeIcon },
-  { name: 'Контрагенты', href: '/tenants', icon: UserGroupIcon },
+  { name: 'Недвижимость', href: '/properties', icon: Home },
+  { name: 'Контрагенты', href: '/tenants', icon: Users },
   { type: 'divider' },
-  { name: 'Договоры', href: '/contracts', icon: DocumentTextIcon },
-  { name: 'Начисления', href: '/accruals', icon: CalculatorIcon },
-  { name: 'Поступления', href: '/payments', icon: CreditCardIcon },
-  { name: 'Прогноз', href: '/forecast', icon: ChartBarIcon },
-  { name: 'Отчет', href: '/reports', icon: DocumentChartBarIcon },
+  { name: 'Договоры', href: '/contracts', icon: FileText },
+  { name: 'Начисления', href: '/accruals', icon: Calculator },
+  { name: 'Поступления', href: '/payments', icon: CreditCard },
+  { name: 'Отчет', href: '/reports', icon: FileBarChart },
   { type: 'divider' },
-  { name: 'Рассылки', href: '/notifications', icon: EnvelopeIcon },
-  { name: 'Настройки', href: '/settings', icon: Cog6ToothIcon },
-  { name: 'Помощь', href: '/help', icon: QuestionMarkCircleIcon },
+  { name: 'Рассылки', href: '/notifications', icon: Mail },
+  { name: 'Настройки', href: '/settings', icon: Settings },
+  { name: 'Помощь', href: '/help', icon: HelpCircle },
 ];
 
 // Mobile navigation items (bottom tab bar)
 const mobileNavItems = [
-  { name: 'Дашборд', href: '/dashboard', icon: Squares2X2Icon },
-  { name: 'Счета', href: '/accounts', icon: WalletIcon },
-  { name: 'Договоры', href: '/contracts', icon: DocumentTextIcon },
-  { name: 'Еще', href: '/dashboard', icon: Cog6ToothIcon }, // Will be a dropdown
+  { name: 'Дашборд', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Счета', href: '/accounts', icon: Wallet },
+  { name: 'Договоры', href: '/contracts', icon: FileText },
+  { name: 'Еще', href: '/dashboard', icon: Settings }, // Will be a dropdown
 ];
 
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [sidebarHovered, setSidebarHovered] = React.useState(false);
+  const compact = useCompactStyles();
+  
+  // Состояние фиксации сайдбара (сохраняется в localStorage)
+  const [isPinned, setIsPinned] = React.useState(() => {
+    const saved = localStorage.getItem('sidebarPinned');
+    return saved === 'true';
+  });
+
+  // Сохраняем состояние фиксации в localStorage
+  useEffect(() => {
+    localStorage.setItem('sidebarPinned', String(isPinned));
+  }, [isPinned]);
+
+  // Если зафиксирован, всегда expanded
+  // Компактный sidebar: 56px collapsed, 200px expanded
+  const isExpanded = isPinned || sidebarHovered;
+  const sidebarWidth = isExpanded ? '200px' : '56px';
+
+  const handleLogout = () => {
+    // Полностью очищаем ВСЕ данные авторизации
+    localStorage.removeItem('whatsapp_authorized');
+    localStorage.removeItem('whatsapp_phone');
+    localStorage.removeItem('user_type');
+    localStorage.removeItem('tenant_id');
+    localStorage.removeItem('tenant_name');
+    
+    // Сохраняем только настройки интерфейса
+    const densityMode = localStorage.getItem('density-mode');
+    const userProfile = localStorage.getItem('user_profile');
+    const notificationSettings = localStorage.getItem('notification_settings');
+    const sidebarPinned = localStorage.getItem('sidebarPinned');
+    
+    // Очищаем все
+    localStorage.clear();
+    sessionStorage.clear();
+    
+    // Восстанавливаем только настройки интерфейса (не авторизацию!)
+    if (densityMode) localStorage.setItem('density-mode', densityMode);
+    if (userProfile) localStorage.setItem('user_profile', userProfile);
+    if (notificationSettings) localStorage.setItem('notification_settings', notificationSettings);
+    if (sidebarPinned) localStorage.setItem('sidebarPinned', sidebarPinned);
+    
+    // Перенаправляем на страницу логина с полной перезагрузкой
+    // Используем replace чтобы не было истории для кнопки "назад"
+    window.location.replace('/login');
+  };
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#F8FAFC' }}>
-      {/* Desktop Sidebar */}
-      <div className="hidden md:flex md:fixed md:inset-y-0 md:left-0 md:w-64 md:bg-white md:shadow-xl md:border-r md:border-gray-200">
+    <div className="min-h-screen bg-slate-50">
+      {/* Desktop Sidebar - Fintech Style: 64px collapsed, 240px expanded on hover or pinned */}
+      <div 
+        className="hidden md:flex md:fixed md:inset-y-0 md:left-0 md:w-16 md:bg-white md:shadow-xl md:border-r md:border-slate-200 md:transition-all md:duration-300 md:z-30 group"
+        style={{ width: sidebarWidth }}
+        onMouseEnter={() => !isPinned && setSidebarHovered(true)}
+        onMouseLeave={() => !isPinned && setSidebarHovered(false)}
+      >
         <div className="flex flex-col h-full w-full">
-          {/* Logo */}
-          <div className="flex items-center justify-center h-16 border-b border-gray-200 bg-gradient-to-r from-primary-50 to-white">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-primary-600 to-primary-700 rounded-lg flex items-center justify-center shadow-sm">
-                <span className="text-white font-bold text-sm">A</span>
+          {/* Logo - Компактный */}
+          <div className="flex items-center justify-center h-12 border-b border-slate-200 bg-white">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                <span className="text-white font-bold text-xs">A</span>
               </div>
-              <h1 className="text-gray-900 font-semibold text-sm" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+              <h1 className={`text-slate-900 font-semibold text-xs transition-opacity duration-300 whitespace-nowrap ${
+                isExpanded ? 'opacity-100' : 'opacity-0'
+              }`}>
                 AMT
               </h1>
             </div>
           </div>
           
-          {/* Navigation */}
-          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+          {/* Кнопка фиксации - Компактная */}
+          <div className="px-1.5 py-1 border-b border-slate-200">
+            <button
+              onClick={() => setIsPinned(!isPinned)}
+              className={`w-full flex items-center ${compact.sidebarItemPadding} rounded-lg transition-all duration-200 ${
+                isPinned
+                  ? 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                  : 'text-slate-600 hover:bg-slate-50'
+              }`}
+              title={isPinned ? 'Открепить меню' : 'Закрепить меню'}
+            >
+              {isPinned ? (
+                <Pin className={`${compact.sidebarIconSize} flex-shrink-0`} />
+              ) : (
+                <PinOff className={`${compact.sidebarIconSize} flex-shrink-0`} />
+              )}
+              <span className={`ml-2 truncate transition-opacity duration-300 whitespace-nowrap text-xs ${
+                isExpanded ? 'opacity-100' : 'opacity-0'
+              }`}>
+                {isPinned ? 'Открепить' : 'Закрепить'}
+              </span>
+            </button>
+          </div>
+          
+          {/* Navigation - Компактная */}
+          <nav className="flex-1 px-1.5 py-2 space-y-0.5 overflow-y-auto">
             {navigation.map((item, index) => {
               if ('type' in item && item.type === 'divider') {
                 return (
-                  <div key={`divider-${index}`} className="my-2 border-t border-gray-200"></div>
+                  <div key={`divider-${index}`} className="my-1 border-t border-slate-200"></div>
                 );
               }
               
@@ -96,16 +180,25 @@ export default function Layout({ children }: LayoutProps) {
                   <Link
                     key={navItem.name}
                     to={navItem.href}
-                    className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 ${
+                    className={`group/nav flex items-center ${compact.sidebarItemPadding} ${compact.sidebarItemHeight} ${compact.sidebarText} font-medium rounded-lg transition-all duration-200 relative ${
                       isActive
-                        ? 'bg-gradient-to-r from-primary-600 to-primary-700 text-white shadow-md shadow-primary-200'
-                        : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                     }`}
+                    title={navItem.name}
                   >
-                    <Icon className={`mr-3 h-5 w-5 flex-shrink-0 transition-colors ${
-                      isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-600'
+                    {/* Активный индикатор - тонкая линия слева */}
+                    {isActive && (
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-white rounded-r"></div>
+                    )}
+                    <Icon className={`${compact.sidebarIconSize} flex-shrink-0 transition-colors ${
+                      isActive ? 'text-white' : 'text-slate-400 group-hover/nav:text-slate-600'
                     }`} />
-                    <span className="truncate">{navItem.name}</span>
+                    <span className={`ml-2 truncate transition-opacity duration-300 whitespace-nowrap ${
+                      isExpanded ? 'opacity-100' : 'opacity-0'
+                    }`}>
+                      {navItem.name}
+                    </span>
                   </Link>
                 );
               }
@@ -113,44 +206,77 @@ export default function Layout({ children }: LayoutProps) {
               return null;
             })}
           </nav>
+          
+          {/* Профиль и выход внизу - Компактные */}
+          <div className="border-t border-slate-200 px-1.5 py-1.5 space-y-0.5">
+            <Link
+              to="/settings"
+              className={`flex items-center ${compact.sidebarItemPadding} ${compact.sidebarItemHeight} ${compact.sidebarText} font-medium rounded-lg transition-all duration-200 ${
+                location.pathname === '/settings'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+              title="Профиль"
+            >
+              <User className={`${compact.sidebarIconSize} flex-shrink-0 transition-colors ${
+                location.pathname === '/settings' ? 'text-white' : 'text-slate-400'
+              }`} />
+              <span className={`ml-2 truncate transition-opacity duration-300 whitespace-nowrap ${
+                isExpanded ? 'opacity-100' : 'opacity-0'
+              }`}>
+                Профиль
+              </span>
+            </Link>
+            <button
+              onClick={handleLogout}
+              className={`w-full flex items-center ${compact.sidebarItemPadding} ${compact.sidebarItemHeight} ${compact.sidebarText} font-medium rounded-lg transition-all duration-200 text-slate-600 hover:bg-red-50 hover:text-red-600`}
+              title="Выйти"
+            >
+              <LogOut className={`${compact.sidebarIconSize} flex-shrink-0 text-slate-400`} />
+              <span className={`ml-2 truncate transition-opacity duration-300 whitespace-nowrap ${
+                isExpanded ? 'opacity-100' : 'opacity-0'
+              }`}>
+                Выйти
+              </span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-14 bg-white border-b border-gray-200 z-40 flex items-center justify-between px-4">
-        <div className="flex items-center space-x-2">
-          <div className="w-7 h-7 bg-gradient-to-br from-primary-600 to-primary-700 rounded-lg flex items-center justify-center shadow-sm">
-            <span className="text-white font-bold text-xs">A</span>
+      {/* Mobile Header - Компактный */}
+      <div className="md:hidden fixed top-0 left-0 right-0 h-12 bg-white border-b border-slate-200 z-40 flex items-center justify-between px-3">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-lg flex items-center justify-center shadow-sm">
+            <span className="text-white font-bold text-[10px]">A</span>
           </div>
-          <h1 className="text-gray-900 font-semibold text-sm">AMT</h1>
+          <h1 className="text-slate-900 font-semibold text-xs">AMT</h1>
         </div>
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-2 rounded-lg text-gray-600 hover:bg-gray-100"
+          className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 min-h-[44px] min-w-[44px] flex items-center justify-center"
         >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
+          <Menu className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Mobile Menu Drawer */}
+      {/* Mobile Menu Drawer - Компактный */}
       {mobileMenuOpen && (
         <div className="md:hidden fixed inset-0 z-50 bg-black bg-opacity-50" onClick={() => setMobileMenuOpen(false)}>
           <div className="fixed inset-y-0 right-0 w-64 bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex flex-col h-full">
-              <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">Меню</h2>
-                <button onClick={() => setMobileMenuOpen(false)} className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+              <div className={`flex items-center justify-between ${compact.cardPaddingSmall} border-b border-slate-200`}>
+                <h2 className={`${compact.sectionHeader} text-slate-900`}>Меню</h2>
+                <button 
+                  onClick={() => setMobileMenuOpen(false)} 
+                  className={`p-2 text-slate-600 hover:bg-slate-100 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center`}
+                >
+                  <X className="w-5 h-5" />
                 </button>
               </div>
-              <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+              <nav className={`flex-1 px-2 py-2 space-y-0.5 overflow-y-auto`}>
                 {navigation.map((item, index) => {
                   if ('type' in item && item.type === 'divider') {
-                    return <div key={`divider-${index}`} className="my-2 border-t border-gray-200"></div>;
+                    return <div key={`divider-${index}`} className="my-1 border-t border-slate-200"></div>;
                   }
                   if ('href' in item && 'icon' in item) {
                     const navItem = item as { name: string; href: string; icon: React.ComponentType<{ className?: string }> };
@@ -161,13 +287,13 @@ export default function Layout({ children }: LayoutProps) {
                         key={navItem.name}
                         to={navItem.href}
                         onClick={() => setMobileMenuOpen(false)}
-                        className={`group flex items-center px-3 py-3 text-sm font-medium rounded-xl transition-all ${
+                        className={`group flex items-center px-2.5 py-2.5 min-h-[44px] ${compact.sidebarText} font-medium rounded-lg transition-all ${
                           isActive
-                            ? 'bg-gradient-to-r from-primary-600 to-primary-700 text-white'
-                            : 'text-gray-700 hover:bg-gray-50'
+                            ? 'bg-indigo-600 text-white'
+                            : 'text-slate-700 hover:bg-slate-50'
                         }`}
                       >
-                        <Icon className={`mr-3 h-5 w-5 ${isActive ? 'text-white' : 'text-gray-400'}`} />
+                        <Icon className={`mr-2 ${compact.sidebarIconSize} ${isActive ? 'text-white' : 'text-slate-400'}`} />
                         <span>{navItem.name}</span>
                       </Link>
                     );
@@ -180,15 +306,17 @@ export default function Layout({ children }: LayoutProps) {
         </div>
       )}
 
-      {/* Main content */}
-      <div className="md:pl-64 pt-14 md:pt-0">
-        <main className="p-4 md:p-8 pb-20 md:pb-8">
+      {/* Main content - Компактный: динамический отступ для сайдбара (56px collapsed, 200px expanded) */}
+      <div 
+        className={`pt-12 md:pt-0 transition-all duration-300 ${isExpanded ? 'md:pl-[200px]' : 'md:pl-14'}`}
+      >
+        <main className="p-3 md:p-4 lg:p-4 pb-20 md:pb-4">
           {children}
         </main>
       </div>
 
-      {/* Mobile Bottom Tab Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-200 z-40 flex items-center justify-around shadow-lg">
+      {/* Mobile Bottom Tab Bar - Компактный */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-white border-t border-slate-200 z-40 flex items-center justify-around shadow-lg">
         {mobileNavItems.map((item) => {
           const isActive = location.pathname === item.href || 
             (item.href === '/dashboard' && location.pathname === '/');
@@ -199,12 +327,12 @@ export default function Layout({ children }: LayoutProps) {
               <button
                 key={item.name}
                 onClick={() => setMobileMenuOpen(true)}
-                className={`flex flex-col items-center justify-center flex-1 h-full min-h-[44px] ${
-                  isActive ? 'text-primary-600' : 'text-gray-500'
+                className={`flex flex-col items-center justify-center flex-1 h-full min-h-[44px] gap-0.5 ${
+                  isActive ? 'text-indigo-600' : 'text-slate-500'
                 }`}
               >
-                <Icon className="w-6 h-6 mb-1" />
-                <span className="text-xs">{item.name}</span>
+                <Icon className="w-5 h-5" />
+                <span className="text-[10px]">{item.name}</span>
               </button>
             );
           }
@@ -213,12 +341,12 @@ export default function Layout({ children }: LayoutProps) {
             <Link
               key={item.name}
               to={item.href}
-              className={`flex flex-col items-center justify-center flex-1 h-full min-h-[44px] ${
-                isActive ? 'text-primary-600' : 'text-gray-500'
+              className={`flex flex-col items-center justify-center flex-1 h-full min-h-[44px] gap-0.5 ${
+                isActive ? 'text-indigo-600' : 'text-slate-500'
               }`}
             >
-              <Icon className="w-6 h-6 mb-1" />
-              <span className="text-xs">{item.name}</span>
+              <Icon className="w-5 h-5" />
+              <span className="text-[10px]">{item.name}</span>
             </Link>
           );
         })}

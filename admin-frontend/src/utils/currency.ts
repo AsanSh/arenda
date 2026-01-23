@@ -17,7 +17,7 @@ export const CURRENCY_NAMES: Record<string, string> = {
 };
 
 /**
- * Форматирует сумму с валютой
+ * Форматирует сумму с валютой (без десятичных знаков)
  */
 export function formatCurrency(amount: number | string, currency: string = 'KGS'): string {
   // Используем более точное преобразование для избежания проблем с округлением
@@ -35,10 +35,10 @@ export function formatCurrency(amount: number | string, currency: string = 'KGS'
   }
   
   const symbol = CURRENCY_SYMBOLS[currency] || currency;
-  // Используем toFixed для точного форматирования
-  const formatted = numAmount.toLocaleString('ru-RU', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+  // Форматируем без десятичных знаков (0 знаков после запятой)
+  const formatted = Math.round(numAmount).toLocaleString('ru-RU', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
     useGrouping: true,
   });
   
@@ -50,12 +50,13 @@ export function formatCurrency(amount: number | string, currency: string = 'KGS'
 }
 
 /**
- * Форматирует сумму без символа валюты (только число)
+ * Форматирует сумму без символа валюты (только число, без десятичных знаков)
  */
 export function formatAmount(amount: number | string): string {
   const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-  return numAmount.toLocaleString('ru-RU', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+  return Math.round(numAmount).toLocaleString('ru-RU', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+    useGrouping: true,
   });
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import client from '../api/client';
 
-interface Account {
+interface AccountFormData {
   id?: number;
   name: string;
   account_type: string;
@@ -20,9 +20,9 @@ interface Tenant {
 }
 
 interface AccountFormProps {
-  account: Account | null;
-  onSave: () => void;
-  onCancel: () => void;
+  account: AccountFormData | null;
+  onSubmit: (data: AccountFormData) => Promise<void>;
+  loading?: boolean;
 }
 
 const ACCOUNT_TYPES = [
@@ -35,9 +35,9 @@ const CURRENCIES = [
   { value: 'USD', label: 'USD (доллары)' },
 ];
 
-export default function AccountForm({ account, onSave, onCancel }: AccountFormProps) {
+export default function AccountForm({ account, onSubmit, loading = false }: AccountFormProps) {
   const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [formData, setFormData] = useState<Account>({
+  const [formData, setFormData] = useState<AccountFormData>({
     name: '',
     account_type: 'cash',
     currency: 'KGS',
@@ -47,7 +47,6 @@ export default function AccountForm({ account, onSave, onCancel }: AccountFormPr
     is_active: account?.is_active ?? true,
     comment: account?.comment || '',
   });
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetchTenants();
@@ -71,30 +70,15 @@ export default function AccountForm({ account, onSave, onCancel }: AccountFormPr
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-
-    try {
-      const payload = {
-        ...formData,
-        owner: formData.owner || null,
-      };
-      
-      if (account?.id) {
-        await client.patch(`/accounts/${account.id}/`, payload);
-      } else {
-        await client.post('/accounts/', payload);
-      }
-      onSave();
-    } catch (error: any) {
-      console.error('Error saving account:', error);
-      alert(error.response?.data?.error || 'Ошибка при сохранении');
-    } finally {
-      setLoading(false);
-    }
+    const payload = {
+      ...formData,
+      owner: formData.owner || null,
+    };
+    await onSubmit(payload);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-2">
+    <form id="account-form" onSubmit={handleSubmit} className="space-y-2">
       <div>
         <label className="block text-xs font-medium text-gray-700 mb-0.5">
           Название счета *
@@ -214,22 +198,6 @@ export default function AccountForm({ account, onSave, onCancel }: AccountFormPr
         </label>
       </div>
 
-      <div className="flex justify-end space-x-2 pt-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-3 py-1.5 text-xs border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
-        >
-          Отмена
-        </button>
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-3 py-1.5 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
-        >
-          {loading ? 'Сохранение...' : 'Сохранить'}
-        </button>
-      </div>
     </form>
   );
 }

@@ -60,11 +60,33 @@ class ContractViewSet(viewsets.ModelViewSet):
         
         # Создание депозита, если включен
         if contract.deposit_enabled:
+            from accounts.models import Account
+            # Находим счет по контрагенту и валюте
+            account = Account.objects.filter(
+                owner=contract.tenant,
+                currency=contract.currency,
+                is_active=True
+            ).first()
+            
+            # Если счета нет, создаем общий счет для контрагента
+            if not account:
+                account = Account.objects.create(
+                    name=f"{contract.tenant.name} ({contract.get_currency_display()})",
+                    account_type='bank',
+                    currency=contract.currency,
+                    owner=contract.tenant,
+                    is_active=True
+                )
+            
             Deposit.objects.create(
                 contract=contract,
                 amount=contract.deposit_amount,
                 balance=Decimal('0')
             )
+            
+            # Увеличиваем баланс счета на сумму депозита
+            account.balance += contract.deposit_amount
+            account.save()
         
         # Создание аванса, если включен
         if contract.advance_enabled:
