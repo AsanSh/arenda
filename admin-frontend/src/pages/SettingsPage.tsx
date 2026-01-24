@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDensity } from '../contexts/DensityContext';
+import { useUser } from '../contexts/UserContext';
 import { UserIcon, PaintBrushIcon, BellIcon } from '@heroicons/react/24/outline';
 import { MessageCircle } from 'lucide-react';
 
@@ -20,20 +21,50 @@ interface NotificationSettings {
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabType>('profile');
   const { isCompact, toggleCompact } = useDensity();
+  const { user } = useUser();
   
-  // Профиль
+  // Профиль - автоматически заполняем из UserContext
   const [profile, setProfile] = useState<ProfileData>(() => {
     const saved = localStorage.getItem('user_profile');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        // Если есть телефон из UserContext, используем его
+        const phoneFromContext = localStorage.getItem('whatsapp_phone') || user?.phone || '';
+        return {
+          username: parsed.username || user?.username || '',
+          email: parsed.email || user?.email || '',
+          phone: parsed.phone || phoneFromContext || '',
+        };
       } catch {
-        return { username: '', email: '', phone: '' };
+        const phoneFromContext = localStorage.getItem('whatsapp_phone') || user?.phone || '';
+        return {
+          username: user?.username || '',
+          email: user?.email || '',
+          phone: phoneFromContext,
+        };
       }
     }
-    return { username: '', email: '', phone: '' };
+    const phoneFromContext = localStorage.getItem('whatsapp_phone') || user?.phone || '';
+    return {
+      username: user?.username || '',
+      email: user?.email || '',
+      phone: phoneFromContext,
+    };
   });
   const [profileLoading, setProfileLoading] = useState(false);
+  
+  // Обновляем профиль при изменении user из контекста
+  useEffect(() => {
+    if (user) {
+      const phoneFromContext = localStorage.getItem('whatsapp_phone') || user.phone || '';
+      setProfile(prev => ({
+        username: prev.username || user.username || '',
+        email: prev.email || user.email || '',
+        phone: prev.phone || phoneFromContext,
+      }));
+    }
+  }, [user]);
   
   // Уведомления
   const [notifications, setNotifications] = useState<NotificationSettings>(() => {

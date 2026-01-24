@@ -9,6 +9,7 @@ import { formatCurrency } from '../utils/currency';
 import PeriodFilterBar from '../components/PeriodFilterBar';
 import CounterpartyFilter from '../components/CounterpartyFilter';
 import { useDensity } from '../contexts/DensityContext';
+import { useUser } from '../contexts/UserContext';
 import { useCompactStyles } from '../hooks/useCompactStyles';
 import { DatePreset } from '../utils/datePresets';
 
@@ -32,7 +33,12 @@ interface Contract {
 
 export default function ContractsPage() {
   const { isCompact } = useDensity();
+  const { user, canWrite } = useUser();
   const compact = useCompactStyles();
+  const canEdit = canWrite('contracts');
+  // Арендаторы не могут добавлять/редактировать договоры
+  const isTenant = user?.role === 'tenant';
+  const canAddContract = !isTenant && (user?.is_admin || user?.is_staff || canEdit);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -266,16 +272,18 @@ export default function ContractsPage() {
           <h1 className={compact.sectionHeader + ' text-slate-900'}>Договоры</h1>
           <p className="mt-1 text-xs md:text-sm text-slate-500">Управление договорами аренды</p>
         </div>
-        <button
-          onClick={() => {
-            setEditingContract(null);
-            setIsDrawerOpen(true);
-          }}
-          className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-        >
-          <Plus className="h-5 w-5 mr-2" />
-          Добавить договор
-        </button>
+        {canAddContract && (
+          <button
+            onClick={() => {
+              setEditingContract(null);
+              setIsDrawerOpen(true);
+            }}
+            className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Добавить договор
+          </button>
+        )}
       </div>
 
       {/* Поиск - сверху отдельно */}
@@ -435,18 +443,22 @@ export default function ContractsPage() {
                 </td>
                 <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-right leading-tight`}>
                   <div className="flex justify-end items-center gap-2">
-                    <button
-                      onClick={() => handleEdit(contract)}
-                      className="px-2 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors"
-                      title="Редактировать"
-                    >
-                      Редактировать
-                    </button>
+                    {canEdit && (
+                      <button
+                        onClick={() => handleEdit(contract)}
+                        className="px-2 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors"
+                        title="Редактировать"
+                      >
+                        Редактировать
+                      </button>
+                    )}
                     <ActionsMenu
                       items={[
                         { label: 'Просмотр', onClick: () => navigate(`/contracts/${contract.id}`), icon: <ArrowRight className="h-4 w-4" /> },
-                        { label: 'Пролонгировать', onClick: () => handleProlongate(contract) },
-                        { label: 'Удалить', onClick: () => handleDelete(contract), variant: 'danger' },
+                        ...(canEdit ? [
+                          { label: 'Пролонгировать', onClick: () => handleProlongate(contract) },
+                          { label: 'Удалить', onClick: () => handleDelete(contract), variant: 'danger' as const },
+                        ] : []),
                       ]}
                       alwaysVisible={true}
                     />

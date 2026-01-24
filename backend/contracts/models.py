@@ -32,6 +32,14 @@ class Contract(models.Model):
     signed_at = models.DateField(verbose_name='Дата подписания')
     property = models.ForeignKey(Property, on_delete=models.PROTECT, related_name='contracts', verbose_name='Объект')
     tenant = models.ForeignKey(Tenant, on_delete=models.PROTECT, related_name='contracts', verbose_name='Арендатор')
+    landlord = models.ForeignKey(
+        Tenant,
+        on_delete=models.PROTECT,
+        related_name='landlord_contracts',
+        null=True,
+        blank=True,
+        verbose_name='Арендодатель'
+    )
     start_date = models.DateField(verbose_name='Дата начала')
     end_date = models.DateField(verbose_name='Дата окончания')
     rent_amount = models.DecimalField(

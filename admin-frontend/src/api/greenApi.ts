@@ -35,8 +35,11 @@ export async function getQRCode(): Promise<GreenApiResponse<string>> {
 
     // Green API может возвращать 200 OK даже при alreadyLogged
     // Поэтому проверяем только критические ошибки
+    // ВАЖНО: Не читаем response здесь, чтобы не блокировать дальнейшее чтение
     if (!response.ok && response.status >= 400) {
-      const errorText = await response.text();
+      // Клонируем response для чтения ошибки, чтобы не блокировать оригинальный response
+      const errorResponse = response.clone();
+      const errorText = await errorResponse.text();
       console.error('QR code request failed:', response.status, errorText);
       return {
         success: false,
@@ -90,7 +93,9 @@ export async function getQRCode(): Promise<GreenApiResponse<string>> {
         data = await response.json();
       } catch (jsonError) {
         // Если не JSON, пытаемся прочитать как текст
-        const textData = await response.text();
+        // Клонируем response, если уже был прочитан
+        const textResponse = response.bodyUsed ? await fetch(response.url).then(r => r.clone()) : response.clone();
+        const textData = await textResponse.text();
         console.log('QR code text response:', textData);
         
         // Проверяем, не является ли это сообщением об ошибке

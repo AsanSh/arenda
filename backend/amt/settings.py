@@ -13,9 +13,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-dev-key-change-in-production')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', '1') == '1'
+# В продакшене установите DEBUG=0 через переменную окружения
+DEBUG = os.environ.get('DEBUG', '0') == '1'
 
-ALLOWED_HOSTS = ['*']
+# Разрешенные хосты
+ALLOWED_HOSTS = [
+    'assetmanagement.team',
+    'www.assetmanagement.team',
+    '5.101.67.195',  # IP сервера
+    'localhost',
+    '127.0.0.1',
+]
 
 # Application definition
 INSTALLED_APPS = [
@@ -125,19 +133,41 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
 }
 
 # CORS
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
+    "https://assetmanagement.team",
+    "https://www.assetmanagement.team",
+    "http://localhost:3000",  # Для локальной разработки
     "http://localhost:3001",
     "http://127.0.0.1:3000",
-    "http://127.0.0.1:3001",
-    "http://5.101.67.195:3000",
-    "http://5.101.67.195:3001",
+    "http://5.101.67.195:3000",  # Прямой доступ по IP (для разработки)
 ]
 
+# В продакшене разрешаем только указанные origins
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOW_CREDENTIALS = True
+
+# CSRF настройки для работы с фронтендом
+CSRF_TRUSTED_ORIGINS = [
+    'http://assetmanagement.team',
+    'https://assetmanagement.team',
+    'http://www.assetmanagement.team',
+    'https://www.assetmanagement.team',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://5.101.67.195',
+]
+CSRF_COOKIE_SECURE = False  # Для HTTP, установите True для HTTPS
+CSRF_COOKIE_HTTPONLY = False
+CSRF_USE_SESSIONS = False
+CSRF_COOKIE_SAMESITE = 'Lax'

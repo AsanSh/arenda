@@ -38,9 +38,11 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - REACT_APP_API_URL=http://5.101.67.195:8000/api
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-https://assetmanagement.team/api}
       - CHOKIDAR_USEPOLLING=true
       - HOST=0.0.0.0
+      - DANGEROUSLY_DISABLE_HOST_CHECK=true
+      - WDS_SOCKET_HOST=assetmanagement.team
     stdin_open: true
     tty: true
 

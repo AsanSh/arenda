@@ -1,24 +1,36 @@
 from rest_framework import viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
-from .models import Tenant, ExchangeRate
-from .serializers import TenantSerializer, ExchangeRateSerializer
+from .models import Tenant, ExchangeRate, Request
+from .serializers import TenantSerializer, ExchangeRateSerializer, RequestSerializer, RequestListSerializer
 from .services import ExchangeRateService
+from .mixins import DataScopingMixin
+from .permissions import ReadOnlyForClients, CanReadResource, CanWriteResource
 
 
-class TenantViewSet(viewsets.ModelViewSet):
-    """ViewSet для управления контрагентами"""
+class TenantViewSet(DataScopingMixin, viewsets.ModelViewSet):
+    """ViewSet для управления контрагентами с RBAC"""
     queryset = Tenant.objects.all()
     serializer_class = TenantSerializer
+    permission_classes = [IsAuthenticated, CanReadResource, CanWriteResource]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['type', 'phone']
     search_fields = ['name', 'email', 'phone', 'contact_person']
     ordering_fields = ['name', 'created_at']
     ordering = ['name']
     
+    def perform_destroy(self, instance):
+        """Защита от удаления суперадмина"""
+        if instance.type == 'admin':
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Нельзя удалить администратора системы. Это суперадмин.")
+        super().perform_destroy(instance)
+    
     def get_queryset(self):
+        """Применяем data scoping"""
         queryset = super().get_queryset()
         phone = self.request.query_params.get('phone', None)
         
@@ -82,13 +94,9 @@ class TenantViewSet(viewsets.ModelViewSet):
                     query |= Q(phone__icontains=search_phone)
             
             # Дополнительно ищем по нормализованным версиям
-            # Это критично для случаев, когда в базе "+996557903999", а ищем "996557903999"
-            # Используем более простой подход - ищем по последовательности цифр
             for norm_variant in normalized_variants:
                 if norm_variant and len(norm_variant) >= 9:
                     # Ищем номера, которые содержат эту последовательность цифр
-                    # Это найдет "+996557903999" при поиске "996557903999"
-                    # Используем icontains для поиска подстроки
                     query |= Q(phone__icontains=norm_variant)
             
             queryset = queryset.filter(query).distinct()
@@ -105,6 +113,7 @@ class ExchangeRateViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet для работы с курсами валют"""
     queryset = ExchangeRate.objects.all()
     serializer_class = ExchangeRateSerializer
+    permission_classes = [IsAuthenticated]
     
     @action(detail=False, methods=['post'])
     def update_rates(self, request):
@@ -121,4 +130,100 @@ class ExchangeRateViewSet(viewsets.ReadOnlyModelViewSet):
         
         rates = ExchangeRate.objects.filter(date=today, source=source)
         serializer = self.get_serializer(rates, many=True)
+        return Response(serializer.data)
+
+
+class RequestViewSet(DataScopingMixin, viewsets.ModelViewSet):
+    """ViewSet для управления заявками"""
+    queryset = Request.objects.all()
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['type', 'status', 'assigned_to']
+    search_fields = ['subject', 'message']
+    ordering_fields = ['created_at', 'updated_at', 'status']
+    ordering = ['-created_at']
+    
+    def get_serializer_class(self):
+        """Используем упрощенный сериализатор для списка"""
+        if self.action == 'list':
+            return RequestListSerializer
+        return RequestSerializer
+    
+    def get_queryset(self):
+        """Применяем data scoping для заявок"""
+        queryset = super().get_queryset()
+        user = self.request.user
+        
+        # Admin и Staff видят все заявки
+        if user.role in ['admin', 'staff']:
+            return queryset
+        
+        # Клиенты видят только свои заявки
+        if user.role in ['tenant', 'landlord', 'investor']:
+            return queryset.filter(created_by=user)
+        
+        return queryset.none()
+    
+    def perform_create(self, serializer):
+        """Автоматически устанавливаем created_by и role"""
+        serializer.save(
+            created_by=self.request.user,
+            role=self.request.user.role,
+            counterparty=self.request.user.counterparty
+        )
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def reply(self, request, pk=None):
+        """Добавить ответ к заявке (клиент может дополнять, staff/admin может отвечать)"""
+        request_obj = self.get_object()
+        user = request.user
+        message = request.data.get('message', '')
+        
+        if not message:
+            return Response({'error': 'Сообщение обязательно'}, status=400)
+        
+        # Клиент может дополнять только свои заявки
+        if user.role in ['tenant', 'landlord', 'investor']:
+            if request_obj.created_by != user:
+                return Response({'error': 'Доступ запрещен'}, status=403)
+            if request_obj.status in ['DONE', 'REJECTED']:
+                return Response({'error': 'Заявка закрыта'}, status=400)
+            # Добавляем сообщение к существующему
+            request_obj.message += f"\n\n--- Дополнение от {user.username} ---\n{message}"
+            request_obj.save()
+        
+        # Staff/Admin могут отвечать публично
+        elif user.role in ['admin', 'staff']:
+            request_obj.public_reply = message
+            if 'status' in request.data:
+                request_obj.status = request.data['status']
+            if 'internal_comment' in request.data:
+                request_obj.internal_comment = request.data['internal_comment']
+            if 'assigned_to' in request.data:
+                request_obj.assigned_to_id = request.data['assigned_to']
+            request_obj.save()
+        
+        serializer = self.get_serializer(request_obj)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def assign(self, request, pk=None):
+        """Назначить заявку сотруднику (только для admin/staff)"""
+        if request.user.role not in ['admin', 'staff']:
+            return Response({'error': 'Доступ запрещен'}, status=403)
+        
+        request_obj = self.get_object()
+        assigned_to_id = request.data.get('assigned_to')
+        
+        if assigned_to_id:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            try:
+                assigned_user = User.objects.get(id=assigned_to_id, role__in=['admin', 'staff'])
+                request_obj.assigned_to = assigned_user
+                request_obj.save()
+            except User.DoesNotExist:
+                return Response({'error': 'Пользователь не найден'}, status=404)
+        
+        serializer = self.get_serializer(request_obj)
         return Response(serializer.data)

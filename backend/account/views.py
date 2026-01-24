@@ -1,18 +1,22 @@
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django.db.models import Sum, Q
 from decimal import Decimal
 from .models import Expense
 from .serializers import ExpenseSerializer, ExpenseListSerializer
 from payments.models import Payment
+from core.mixins import DataScopingMixin
+from core.permissions import ReadOnlyForClients, CanReadResource, CanWriteResource
 
 
-class ExpenseViewSet(viewsets.ModelViewSet):
+class ExpenseViewSet(DataScopingMixin, viewsets.ModelViewSet):
     """
-    ViewSet для управления выплатами/расходами.
+    ViewSet для управления выплатами/расходами с RBAC и data scoping.
     """
-    queryset = Expense.objects.all()
+    queryset = Expense.objects.select_related('contract', 'contract__tenant', 'contract__landlord').all()
+    permission_classes = [IsAuthenticated, CanReadResource, ReadOnlyForClients]
     
     def get_serializer_class(self):
         if self.action == 'list':

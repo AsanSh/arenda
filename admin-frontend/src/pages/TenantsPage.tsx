@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Users, Briefcase, Search, ChevronUp, ChevronDown } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import Drawer from '../components/Drawer';
 import TenantForm from '../components/TenantForm';
 import ActionsMenu from '../components/ui/ActionsMenu';
 import PeriodFilterBar from '../components/PeriodFilterBar';
 import { useDensity } from '../contexts/DensityContext';
+import { useUser } from '../contexts/UserContext';
 import { useCompactStyles } from '../hooks/useCompactStyles';
 import { DatePreset } from '../utils/datePresets';
 
@@ -26,8 +28,11 @@ type SortField = 'name' | 'type' | 'email' | 'phone' | 'inn';
 type SortDirection = 'asc' | 'desc';
 
 export default function TenantsPage() {
+  const navigate = useNavigate();
   const { isCompact } = useDensity();
+  const { user, canWrite } = useUser();
   const compact = useCompactStyles();
+  const canEdit = canWrite('tenants');
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -298,7 +303,12 @@ export default function TenantsPage() {
               {tenants.map((tenant) => (
               <tr key={tenant.id} className={`hover:bg-slate-50 transition-colors group ${compact.rowHeight}`}>
                 <td className={`${compact.cellPadding} whitespace-nowrap`}>
-                  <div className={`${compact.tableText} font-medium text-slate-900`}>{tenant.name}</div>
+                  <button
+                    onClick={() => navigate(`/tenants/${tenant.id}`)}
+                    className={`${compact.tableText} font-medium text-slate-900 hover:text-indigo-600 transition-colors text-left`}
+                  >
+                    {tenant.name}
+                  </button>
                 </td>
                 <td className={`${compact.cellPadding} whitespace-nowrap`}>
                   <div className={`flex items-center gap-1 ${compact.tableText} text-slate-600`}>
@@ -328,19 +338,33 @@ export default function TenantsPage() {
                 </td>
                 <td className={`${compact.cellPadding} whitespace-nowrap text-right`}>
                   <div className="flex justify-end items-center gap-1">
-                    <button
-                      onClick={() => handleEdit(tenant)}
-                      className={`px-2 py-0.5 ${compact.smallText} font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors`}
-                      title="Редактировать"
-                    >
-                      Редактировать
-                    </button>
-                    <ActionsMenu
-                      items={[
-                        { label: 'Удалить', onClick: () => handleDelete(tenant), variant: 'danger' },
-                      ]}
-                      alwaysVisible={true}
-                    />
+                    {canEdit ? (
+                      <>
+                        <button
+                          onClick={() => handleEdit(tenant)}
+                          className={`px-2 py-0.5 ${compact.smallText} font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors`}
+                          title="Редактировать"
+                        >
+                          Редактировать
+                        </button>
+                        <ActionsMenu
+                          items={[
+                            { label: 'Удалить', onClick: () => handleDelete(tenant), variant: 'danger' },
+                          ]}
+                          alwaysVisible={true}
+                        />
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          window.location.href = `/requests?type=CHANGE_CONTACTS&related_contract=${tenant.id}`;
+                        }}
+                        className={`px-2 py-0.5 ${compact.smallText} font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors`}
+                        title="Запросить изменение"
+                      >
+                        Запросить изменение
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>

@@ -2,7 +2,7 @@
 
 **Дата создания:** 2026-01-23  
 **Git Tag:** `POINT-A`  
-**Git Commit:** `baa008d356e21349ee43e56feea285b2214baf81`
+**Git Commit:** `f7e214132f0162eb7cce5d50d4ae0cf16f6f7874`
 
 ## Описание состояния
 
@@ -60,23 +60,29 @@
 
 ## Восстановление
 
-### Способ 1: Через Git Tag
+### Способ 1: Через Git Tag (рекомендуется)
 ```bash
 cd /root/arenda
 git checkout POINT-A
 ```
 
-### Способ 2: Через Git Commit
+### Способ 2: Через Git Commit Hash
 ```bash
 cd /root/arenda
-git log --oneline --grep="POINT A"
-git checkout <commit-hash>
+git checkout f7e214132f0162eb7cce5d50d4ae0cf16f6f7874
 ```
 
 ### Способ 3: Через Git Reset (если нужно вернуться к этому состоянию)
 ```bash
 cd /root/arenda
 git reset --hard POINT-A
+```
+
+### Способ 4: Через поиск по сообщению коммита
+```bash
+cd /root/arenda
+git log --oneline --grep="POINT A"
+git checkout <commit-hash>
 ```
 
 ## Примечания

@@ -102,18 +102,22 @@ export default function DashboardPage() {
       
       // Загружаем статистику
       const statsResponse = await client.get('/dashboard/stats/');
+      console.log('Dashboard stats response:', statsResponse.data);
       setStats(statsResponse.data);
       
       // Загружаем просроченные начисления
       const overdueResponse = await client.get('/dashboard/overdue/?limit=5');
+      console.log('Dashboard overdue response:', overdueResponse.data);
       setOverdue(overdueResponse.data);
       
       // Загружаем последние платежи
       const paymentsResponse = await client.get('/dashboard/recent_payments/?limit=5');
+      console.log('Dashboard payments response:', paymentsResponse.data);
       setRecentPayments(paymentsResponse.data);
       
       // Загружаем предстоящие платежи
       const upcomingResponse = await client.get('/dashboard/upcoming_payments/?limit=5');
+      console.log('Dashboard upcoming response:', upcomingResponse.data);
       setUpcoming(upcomingResponse.data);
       
       // Генерируем тестовые данные для графика (в реальности нужно получать с бэкенда)
@@ -124,8 +128,15 @@ export default function DashboardPage() {
       setPaymentHistory(mockHistory);
       
       setLoading(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching dashboard data:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      // Показываем более детальную ошибку
+      if (error.response?.status === 401) {
+        console.error('Unauthorized - redirecting to login');
+        window.location.href = '/login';
+      }
       setLoading(false);
     }
   };
@@ -155,7 +166,14 @@ export default function DashboardPage() {
   if (!stats) {
     return (
       <div className="text-center py-12">
-        <p className="text-red-600">Ошибка загрузки данных</p>
+        <p className="text-red-600 mb-2">Ошибка загрузки данных</p>
+        <p className="text-sm text-gray-500 mb-4">Проверьте консоль браузера для деталей</p>
+        <button
+          onClick={() => fetchDashboardData()}
+          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+        >
+          Попробовать снова
+        </button>
       </div>
     );
   }

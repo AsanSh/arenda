@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from decimal import Decimal
 from .models import Account, AccountTransaction
@@ -9,13 +10,16 @@ from .serializers import (
     AccountTransactionSerializer, AccountTransactionListSerializer
 )
 from .services import AccountService
+from core.mixins import DataScopingMixin
+from core.permissions import ReadOnlyForClients, CanReadResource, CanWriteResource
 
 
-class AccountViewSet(viewsets.ModelViewSet):
+class AccountViewSet(DataScopingMixin, viewsets.ModelViewSet):
     """
-    ViewSet для управления счетами.
+    ViewSet для управления счетами с RBAC и data scoping.
     """
     queryset = Account.objects.select_related('owner').all()
+    permission_classes = [IsAuthenticated, CanReadResource, CanWriteResource]
     filter_backends = []
     
     def get_serializer_class(self):

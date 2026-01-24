@@ -205,11 +205,19 @@ export default function LoginPage() {
               const allPhonesSet = new Set([...priorityPhones, ...searchPhonesArray]);
               const allPhones = Array.from(allPhonesSet);
               
+              let userFound = false;
               let tenantFound = false;
+              
+              // Сначала пытаемся найти пользователя через /api/auth/me (если есть токен)
+              // Но для WhatsApp логина нужно найти по номеру телефона
+              // Пробуем найти контрагента, а затем связанного пользователя
+              
               for (const searchPhone of allPhones) {
                 if (searchPhone && searchPhone.length >= 9) {
                   try {
-                    console.log(`Trying to find tenant with phone: "${searchPhone}"`);
+                    console.log(`Trying to find tenant/user with phone: "${searchPhone}"`);
+                    
+                    // Ищем контрагента
                     const tenantResponse = await client.get(`/tenants/?phone=${encodeURIComponent(searchPhone)}`);
                     const tenants = tenantResponse.data.results || tenantResponse.data || [];
                     
@@ -218,23 +226,81 @@ export default function LoginPage() {
                     if (Array.isArray(tenants) && tenants.length > 0) {
                       const tenant = tenants[0];
                       console.log('✅ Tenant found:', tenant);
-                      console.log('Tenant phone in DB:', tenant.phone);
+                      console.log('📱 Phone from Green API:', phone);
+                      console.log('📱 Tenant phone from DB:', tenant.phone);
                       
-                      // Сохраняем данные пользователя
-                      localStorage.setItem('whatsapp_authorized', 'true');
-                      localStorage.setItem('whatsapp_phone', phone);
-                      localStorage.setItem('user_type', 'tenant');
-                      localStorage.setItem('tenant_id', tenant.id.toString());
-                      localStorage.setItem('tenant_name', tenant.name);
+                      // ВАЖНО: Используем номер телефона из Green API, а не из базы данных
+                      // Это гарантирует, что мы логинимся с правильным номером, который отсканировал QR
+                      const phoneToUse = phone; // Номер из Green API (тот, который отсканировал QR)
                       
-                      setAuthState('authorized');
-                      tenantFound = true;
-                      
-                      // Редирект на дашборд
-                      setTimeout(() => {
-                        navigate('/dashboard');
-                      }, 1500);
-                      break;
+                      // Создаем Django сессию через специальный endpoint
+                      try {
+                        console.log('🔐 Attempting login with phone from Green API:', phoneToUse);
+                        const loginResponse = await client.post('/auth/login-whatsapp/', { phone: phoneToUse });
+                        console.log('✅ WhatsApp login successful:', loginResponse.data);
+                        console.log('👤 Logged in user role:', loginResponse.data.role);
+                        console.log('👤 Logged in user ID:', loginResponse.data.user_id);
+                        console.log('👤 Logged in counterparty ID:', loginResponse.data.counterparty_id);
+                        
+                        // Сохраняем данные
+                        localStorage.setItem('whatsapp_authorized', 'true');
+                        localStorage.setItem('whatsapp_phone', phoneToUse); // Используем номер из Green API
+                        localStorage.setItem('user_id', loginResponse.data.user_id.toString());
+                        localStorage.setItem('user_role', loginResponse.data.role);
+                        localStorage.setItem('user_name', loginResponse.data.username);
+                        localStorage.setItem('user_type', loginResponse.data.role);
+                        if (loginResponse.data.counterparty_id) {
+                          localStorage.setItem('tenant_id', loginResponse.data.counterparty_id.toString());
+                        }
+                        
+                        // Проверяем, что роль соответствует типу контрагента
+                        if (tenant.type === 'tenant' && loginResponse.data.role !== 'tenant') {
+                          console.warn('⚠️ WARNING: Tenant type is "tenant" but user role is:', loginResponse.data.role);
+                        }
+                        
+                        // Получаем полный профиль
+                        try {
+                          const meResponse = await client.get('/auth/me/');
+                          if (meResponse.data) {
+                            console.log('✅ User profile loaded:', meResponse.data);
+                            localStorage.setItem('user_role', meResponse.data.role);
+                            localStorage.setItem('user_id', meResponse.data.id.toString());
+                            localStorage.setItem('user_name', meResponse.data.username);
+                            if (meResponse.data.counterparty_id) {
+                              localStorage.setItem('tenant_id', meResponse.data.counterparty_id.toString());
+                            }
+                          }
+                        } catch (err) {
+                          console.error('Error fetching user profile:', err);
+                        }
+                        
+                        userFound = true;
+                        tenantFound = true;
+                        setAuthState('authorized');
+                        
+                        // Редирект на дашборд
+                        setTimeout(() => {
+                          navigate('/dashboard');
+                          window.location.reload(); // Перезагружаем для обновления UserContext
+                        }, 1500);
+                        break;
+                      } catch (loginErr: any) {
+                        console.error('Error during WhatsApp login:', loginErr);
+                        // Fallback: сохраняем данные контрагента
+                        localStorage.setItem('whatsapp_authorized', 'true');
+                        localStorage.setItem('whatsapp_phone', phoneToUse); // Используем номер из Green API
+                        localStorage.setItem('tenant_id', tenant.id.toString());
+                        localStorage.setItem('tenant_name', tenant.name);
+                        localStorage.setItem('user_type', 'tenant');
+                        userFound = true;
+                        tenantFound = true;
+                        setAuthState('authorized');
+                        setTimeout(() => {
+                          navigate('/dashboard');
+                          window.location.reload();
+                        }, 1500);
+                        break;
+                      }
                     }
                   } catch (err) {
                     console.error(`Error searching tenant with phone "${searchPhone}":`, err);
@@ -242,13 +308,83 @@ export default function LoginPage() {
                 }
               }
               
-              if (!tenantFound) {
+              if (!userFound) {
+                // Пробуем проверить через специальный endpoint и создать сессию
+                try {
+                  const checkResponse = await client.get(`/auth/check-phone/?phone=${encodeURIComponent(phone)}`);
+                  if (checkResponse.data.can_login) {
+                    console.log('✅ Phone found via check-phone endpoint:', checkResponse.data);
+                    
+                    // Создаем сессию через login-whatsapp
+                    // ВАЖНО: Используем номер телефона из Green API
+                    const phoneToUse = phone; // Номер из Green API
+                    console.log('📱 Using phone from Green API for login:', phoneToUse);
+                    
+                    try {
+                      const loginResponse = await client.post('/auth/login-whatsapp/', { phone: phoneToUse });
+                      console.log('✅ WhatsApp login successful:', loginResponse.data);
+                      console.log('👤 Logged in user role:', loginResponse.data.role);
+                      console.log('👤 Logged in user ID:', loginResponse.data.user_id);
+                      
+                      localStorage.setItem('whatsapp_authorized', 'true');
+                      localStorage.setItem('whatsapp_phone', phoneToUse); // Используем номер из Green API
+                      localStorage.setItem('user_id', loginResponse.data.user_id.toString());
+                      localStorage.setItem('user_role', loginResponse.data.role);
+                      localStorage.setItem('user_name', loginResponse.data.username);
+                      localStorage.setItem('user_type', loginResponse.data.role);
+                      if (loginResponse.data.counterparty_id) {
+                        localStorage.setItem('tenant_id', loginResponse.data.counterparty_id.toString());
+                      }
+                      
+                      // Получаем полный профиль
+                      try {
+                        const meResponse = await client.get('/auth/me/');
+                        if (meResponse.data) {
+                          localStorage.setItem('user_role', meResponse.data.role);
+                          localStorage.setItem('user_id', meResponse.data.id.toString());
+                          localStorage.setItem('user_name', meResponse.data.username);
+                          if (meResponse.data.counterparty_id) {
+                            localStorage.setItem('tenant_id', meResponse.data.counterparty_id.toString());
+                          }
+                          
+                          // Определяем редирект на основе роли
+                          // Все роли идут на /dashboard, но видят разные данные благодаря data scoping
+                          const redirectPath = '/dashboard';
+                          console.log(`User logged in with role: ${meResponse.data.role}, redirecting to: ${redirectPath}`);
+                          
+                          setAuthState('authorized');
+                          setTimeout(() => {
+                            navigate(redirectPath);
+                            // Не перезагружаем страницу, чтобы сохранить состояние
+                            // window.location.reload();
+                          }, 500);
+                        }
+                      } catch (err) {
+                        console.error('Error fetching user profile:', err);
+                        // В случае ошибки все равно редиректим на dashboard
+                        setAuthState('authorized');
+                        setTimeout(() => {
+                          navigate('/dashboard');
+                        }, 500);
+                      }
+                      userFound = true;
+                    } catch (loginErr) {
+                      console.error('Error during WhatsApp login:', loginErr);
+                    }
+                  }
+                } catch (err) {
+                  console.error('Error checking phone via endpoint:', err);
+                }
+              }
+              
+              if (!userFound) {
                 const searchedVariants = Array.from(searchPhones).filter(p => p && p.length >= 9);
                 setError(
-                  `Номер телефона ${phone} не найден в системе контрагентов.\n\n` +
+                  `Номер телефона ${phone} не найден в системе.\n\n` +
                   `Проверенные варианты: ${searchedVariants.join(', ')}\n\n` +
-                  `Убедитесь, что номер ${phone} или один из его вариантов (${normalizedPhone}, +${normalizedPhone}, ${normalizedPhone.startsWith('996') ? normalizedPhone.slice(3) : '996' + normalizedPhone}) ` +
-                  `указан в поле "Телефон" у контрагента в системе. Обратитесь к администратору.`
+                  `Убедитесь, что номер ${phone} или один из его вариантов указан в системе.\n` +
+                  `Для администратора: убедитесь, что создан пользователь с этим номером.\n` +
+                  `Обратитесь к администратору.`
                 );
                 setAuthState('error');
                 stopAuthCheck();

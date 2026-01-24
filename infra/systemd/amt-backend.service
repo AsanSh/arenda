@@ -1,0 +1,19 @@
+[Unit]
+Description=AMT Backend Django Service
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/root/arenda/backend
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+Environment="DJANGO_SETTINGS_MODULE=amt.settings"
+Environment="DEBUG=0"
+Environment="SECRET_KEY=your-secret-key-here"
+ExecStart=/usr/bin/python3 manage.py runserver 127.0.0.1:8000
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

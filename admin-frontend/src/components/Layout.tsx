@@ -19,9 +19,13 @@ import {
   User,
   LogOut,
   Menu,
-  X
+  X,
+  Phone,
+  Tag
 } from 'lucide-react';
 import { useCompactStyles } from '../hooks/useCompactStyles';
+import { useUserMenu } from '../hooks/useUserMenu';
+import { useUser } from '../contexts/UserContext';
 
 interface LayoutProps {
   children: ReactNode;
@@ -37,24 +41,6 @@ type NavigationItem =
       type: 'divider';
     };
 
-const navigation: NavigationItem[] = [
-  { name: 'Дашборд', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Счета', href: '/accounts', icon: Wallet },
-  { name: 'Депозиты', href: '/deposits', icon: Banknote },
-  { type: 'divider' },
-  { name: 'Недвижимость', href: '/properties', icon: Home },
-  { name: 'Контрагенты', href: '/tenants', icon: Users },
-  { type: 'divider' },
-  { name: 'Договоры', href: '/contracts', icon: FileText },
-  { name: 'Начисления', href: '/accruals', icon: Calculator },
-  { name: 'Поступления', href: '/payments', icon: CreditCard },
-  { name: 'Отчет', href: '/reports', icon: FileBarChart },
-  { type: 'divider' },
-  { name: 'Рассылки', href: '/notifications', icon: Mail },
-  { name: 'Настройки', href: '/settings', icon: Settings },
-  { name: 'Помощь', href: '/help', icon: HelpCircle },
-];
-
 // Mobile navigation items (bottom tab bar)
 const mobileNavItems = [
   { name: 'Дашборд', href: '/dashboard', icon: LayoutDashboard },
@@ -68,6 +54,8 @@ export default function Layout({ children }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [sidebarHovered, setSidebarHovered] = React.useState(false);
   const compact = useCompactStyles();
+  const navigation = useUserMenu(); // Динамическое меню на основе роли
+  const { user } = useUser(); // Получаем данные пользователя для отображения телефона
   
   // Состояние фиксации сайдбара (сохраняется в localStorage)
   const [isPinned, setIsPinned] = React.useState(() => {
@@ -162,10 +150,10 @@ export default function Layout({ children }: LayoutProps) {
             </button>
           </div>
           
-          {/* Navigation - Компактная */}
+          {/* Navigation - Компактная (динамическая по ролям) */}
           <nav className="flex-1 px-1.5 py-2 space-y-0.5 overflow-y-auto">
             {navigation.map((item, index) => {
-              if ('type' in item && item.type === 'divider') {
+              if (item.divider || ('type' in item && (item as any).type === 'divider')) {
                 return (
                   <div key={`divider-${index}`} className="my-1 border-t border-slate-200"></div>
                 );
@@ -173,7 +161,8 @@ export default function Layout({ children }: LayoutProps) {
               
               if ('href' in item && 'icon' in item) {
                 const navItem = item as { name: string; href: string; icon: React.ComponentType<{ className?: string }> };
-                const isActive = location.pathname === navItem.href;
+                const isActive = location.pathname === navItem.href || 
+                  (navItem.href !== '/dashboard' && location.pathname.startsWith(navItem.href));
                 const Icon = navItem.icon;
                 
                 return (
@@ -227,6 +216,28 @@ export default function Layout({ children }: LayoutProps) {
                 Профиль
               </span>
             </Link>
+            {/* Отображение номера телефона WhatsApp */}
+            {(user?.phone || localStorage.getItem('whatsapp_phone')) && (
+              <div className={`flex items-center ${compact.sidebarItemPadding} ${compact.sidebarItemHeight} ${compact.sidebarText} text-slate-500`}>
+                <Phone className={`${compact.sidebarIconSize} flex-shrink-0 text-slate-400`} />
+                <span className={`ml-2 truncate transition-opacity duration-300 whitespace-nowrap text-xs ${
+                  isExpanded ? 'opacity-100' : 'opacity-0'
+                }`}>
+                  {user?.phone || localStorage.getItem('whatsapp_phone') || ''}
+                </span>
+              </div>
+            )}
+            {/* Отображение типа контрагента */}
+            {user && (user.counterparty?.type_display || user.role_display) && (
+              <div className={`flex items-center ${compact.sidebarItemPadding} ${compact.sidebarItemHeight} ${compact.sidebarText} text-slate-500`}>
+                <Tag className={`${compact.sidebarIconSize} flex-shrink-0 text-slate-400`} />
+                <span className={`ml-2 truncate transition-opacity duration-300 whitespace-nowrap text-xs ${
+                  isExpanded ? 'opacity-100' : 'opacity-0'
+                }`}>
+                  {user.counterparty?.type_display || user.role_display || ''}
+                </span>
+              </div>
+            )}
             <button
               onClick={handleLogout}
               className={`w-full flex items-center ${compact.sidebarItemPadding} ${compact.sidebarItemHeight} ${compact.sidebarText} font-medium rounded-lg transition-all duration-200 text-slate-600 hover:bg-red-50 hover:text-red-600`}
@@ -275,12 +286,13 @@ export default function Layout({ children }: LayoutProps) {
               </div>
               <nav className={`flex-1 px-2 py-2 space-y-0.5 overflow-y-auto`}>
                 {navigation.map((item, index) => {
-                  if ('type' in item && item.type === 'divider') {
+                  if (item.divider || ('type' in item && (item as any).type === 'divider')) {
                     return <div key={`divider-${index}`} className="my-1 border-t border-slate-200"></div>;
                   }
                   if ('href' in item && 'icon' in item) {
                     const navItem = item as { name: string; href: string; icon: React.ComponentType<{ className?: string }> };
-                    const isActive = location.pathname === navItem.href;
+                    const isActive = location.pathname === navItem.href || 
+                      (navItem.href !== '/dashboard' && location.pathname.startsWith(navItem.href));
                     const Icon = navItem.icon;
                     return (
                       <Link

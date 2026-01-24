@@ -1,17 +1,21 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from decimal import Decimal
 from .models import Deposit, DepositMovement
 from .serializers import DepositSerializer, DepositListSerializer, DepositMovementSerializer
+from core.mixins import DataScopingMixin
+from core.permissions import ReadOnlyForClients
 
 
-class DepositViewSet(viewsets.ModelViewSet):
+class DepositViewSet(DataScopingMixin, viewsets.ModelViewSet):
     """
-    ViewSet для управления депозитами.
+    ViewSet для управления депозитами с RBAC и data scoping.
     """
-    queryset = Deposit.objects.select_related('contract', 'contract__property', 'contract__tenant').all()
+    queryset = Deposit.objects.select_related('contract', 'contract__property', 'contract__tenant', 'contract__landlord').all()
+    permission_classes = [IsAuthenticated, ReadOnlyForClients]
     filter_backends = []
     
     def get_serializer_class(self):

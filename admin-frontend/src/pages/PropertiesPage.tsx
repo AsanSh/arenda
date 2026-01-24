@@ -6,6 +6,7 @@ import PropertyForm from '../components/PropertyForm';
 import PeriodFilterBar from '../components/PeriodFilterBar';
 import ActionsMenu from '../components/ui/ActionsMenu';
 import { useDensity } from '../contexts/DensityContext';
+import { useUser } from '../contexts/UserContext';
 import { useCompactStyles } from '../hooks/useCompactStyles';
 import { DatePreset } from '../utils/datePresets';
 
@@ -26,7 +27,9 @@ interface Property {
 
 export default function PropertiesPage() {
   const { isCompact } = useDensity();
+  const { user, canWrite } = useUser();
   const compact = useCompactStyles();
+  const canEdit = canWrite('properties');
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -165,13 +168,15 @@ export default function PropertiesPage() {
         <div>
           <h1 className={compact.sectionHeader + ' text-gray-900'}>Недвижимость</h1>
         </div>
-        <button
-          onClick={handleAdd}
-          className={`flex items-center gap-1.5 ${compact.buttonPadding} bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition-colors ${compact.buttonText} font-medium`}
-        >
-          <Plus className={compact.iconSize} />
-          Добавить
-        </button>
+        {canEdit && (
+          <button
+            onClick={handleAdd}
+            className={`flex items-center gap-1.5 ${compact.buttonPadding} bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition-colors ${compact.buttonText} font-medium`}
+          >
+            <Plus className={compact.iconSize} />
+            Добавить
+          </button>
+        )}
       </div>
 
       {/* Поиск - Компактный */}
@@ -355,18 +360,31 @@ export default function PropertiesPage() {
                   <span className={`${compact.smallText} text-gray-500`}>{property.area} м²</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => handleEdit(property)}
-                    className={`px-2 py-1 ${compact.smallText} font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors min-h-[44px]`}
-                  >
-                    Редактировать
-                  </button>
-                  <ActionsMenu
-                    items={[
-                      { label: 'Удалить', onClick: () => handleDelete(property), variant: 'danger' },
-                    ]}
-                    alwaysVisible={true}
-                  />
+                  {canEdit ? (
+                    <>
+                      <button
+                        onClick={() => handleEdit(property)}
+                        className={`px-2 py-1 ${compact.smallText} font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors min-h-[44px]`}
+                      >
+                        Редактировать
+                      </button>
+                      <ActionsMenu
+                        items={[
+                          { label: 'Удалить', onClick: () => handleDelete(property), variant: 'danger' },
+                        ]}
+                        alwaysVisible={true}
+                      />
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        window.location.href = `/requests?type=PROPERTY_ISSUE&related_property=${property.id}`;
+                      }}
+                      className={`px-2 py-1 ${compact.smallText} font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors min-h-[44px]`}
+                    >
+                      Запросить изменение
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

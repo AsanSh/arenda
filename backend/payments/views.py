@@ -2,6 +2,7 @@ from decimal import Decimal
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from django.db import transaction
@@ -12,14 +13,17 @@ from accruals.models import Accrual
 from accruals.services import AccrualService
 from accounts.models import AccountTransaction
 from accounts.services import AccountService
+from core.mixins import DataScopingMixin
+from core.permissions import ReadOnlyForClients
 
 
-class PaymentViewSet(viewsets.ModelViewSet):
+class PaymentViewSet(DataScopingMixin, viewsets.ModelViewSet):
     """
-    ViewSet для управления поступлениями.
+    ViewSet для управления поступлениями с RBAC и data scoping.
     При создании автоматически распределяет платеж по начислениям (FIFO).
     """
-    queryset = Payment.objects.select_related('contract', 'contract__property', 'contract__tenant').all()
+    queryset = Payment.objects.select_related('contract', 'contract__property', 'contract__tenant', 'contract__landlord').all()
+    permission_classes = [IsAuthenticated, ReadOnlyForClients]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['contract', 'contract__property', 'contract__tenant']
     search_fields = ['contract__number', 'contract__property__name', 'contract__tenant__name']

@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db.models import Q
@@ -14,14 +15,16 @@ from payments.models import Payment, PaymentAllocation
 from payments.services import PaymentAllocationService
 from accounts.models import Account, AccountTransaction
 from accounts.services import AccountService
+from core.mixins import DataScopingMixin
+from core.permissions import ReadOnlyForClients, CanReadResource, CanWriteResource
 
 
-
-class AccrualViewSet(viewsets.ModelViewSet):
+class AccrualViewSet(DataScopingMixin, viewsets.ModelViewSet):
     """
-    ViewSet для управления начислениями.
+    ViewSet для управления начислениями с RBAC и data scoping.
     """
-    queryset = Accrual.objects.select_related('contract', 'contract__property', 'contract__tenant').all()
+    queryset = Accrual.objects.select_related('contract', 'contract__property', 'contract__tenant', 'contract__landlord').all()
+    permission_classes = [IsAuthenticated, CanReadResource, ReadOnlyForClients]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'utility_type', 'contract__tenant']
     search_fields = ['contract__number', 'contract__property__name', 'contract__property__address', 'contract__tenant__name']

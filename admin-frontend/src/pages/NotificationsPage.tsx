@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import client from '../api/client';
 import { formatAmount } from '../utils/currency';
+import { useUser } from '../contexts/UserContext';
 import { 
   Mail, 
   Phone, 
@@ -53,6 +54,10 @@ interface TriggerSettings {
 }
 
 export default function NotificationsPage() {
+  const { user } = useUser();
+  // Только администраторы и сотрудники могут управлять уведомлениями
+  const canManageNotifications = user?.is_admin || user?.is_staff;
+  
   const [settings, setSettings] = useState<NotificationSetting[]>([]);
   const [loading, setLoading] = useState(true);
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -265,6 +270,17 @@ export default function NotificationsPage() {
 
   if (loading) {
     return <div className="text-center py-8">Загрузка...</div>;
+  }
+
+  // Если пользователь не имеет прав на управление уведомлениями, показываем сообщение
+  if (!canManageNotifications) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <AlertCircle className="w-16 h-16 text-red-600 mb-4" />
+        <p className="text-lg font-semibold text-red-600 mb-2">Доступ запрещен</p>
+        <p className="text-sm text-slate-600">Управление уведомлениями доступно только администраторам и сотрудникам.</p>
+      </div>
+    );
   }
 
   return (

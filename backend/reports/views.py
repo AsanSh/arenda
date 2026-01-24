@@ -1,6 +1,7 @@
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django.db.models import Sum, Q, Count
 from django.utils import timezone
 from datetime import datetime, timedelta
@@ -12,9 +13,11 @@ from account.models import Expense
 from accounts.models import Account, AccountTransaction
 from properties.models import Property
 from core.models import Tenant
+from core.mixins import DataScopingMixin
 
 
-class ReportsViewSet(viewsets.ViewSet):
+class ReportsViewSet(DataScopingMixin, viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
     """
     ViewSet для генерации отчетов.
     """
@@ -74,8 +77,9 @@ class ReportsViewSet(viewsets.ViewSet):
             payments_filter &= Q(contract__tenant_id=tenant_id)
             expenses_filter &= Q(contract__tenant_id=tenant_id)
         
-        # Доходы: начисления за период
+        # Доходы: начисления за период (с data scoping)
         accruals_query = Accrual.objects.filter(accruals_filter)
+        accruals_query = self._scope_for_user(accruals_query, request.user, 'Accrual')
         if not all_time and from_date and to_date:
             accruals_query = accruals_query.filter(
                 period_start__lte=to_date,
@@ -83,8 +87,9 @@ class ReportsViewSet(viewsets.ViewSet):
             )
         accruals = accruals_query.select_related('contract', 'contract__property', 'contract__tenant')
         
-        # Фактические поступления за период
+        # Фактические поступления за период (с data scoping)
         payments_query = Payment.objects.filter(payments_filter)
+        payments_query = self._scope_for_user(payments_query, request.user, 'Payment')
         if not all_time and from_date and to_date:
             payments_query = payments_query.filter(
                 payment_date__gte=from_date,
@@ -584,9 +589,10 @@ class ReportsViewSet(viewsets.ViewSet):
         if tenant_id:
             overdue_filter &= Q(contract__tenant_id=tenant_id)
         
-        overdue_accruals = Accrual.objects.filter(
-            overdue_filter
-        ).select_related(
+        overdue_accruals = Accrual.objects.filter(overdue_filter)
+        # Применяем data scoping
+        overdue_accruals = self._scope_for_user(overdue_accruals, request.user, 'Accrual')
+        overdue_accruals = overdue_accruals.select_related(
             'contract', 'contract__property', 'contract__tenant'
         ).order_by('due_date')
         

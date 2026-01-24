@@ -11,6 +11,7 @@ import CounterpartyFilter from '../components/CounterpartyFilter';
 import AcceptPaymentModal from '../components/AcceptPaymentModal';
 import BulkAcceptPaymentModal from '../components/BulkAcceptPaymentModal';
 import ActionsMenu from '../components/ui/ActionsMenu';
+import { useUser } from '../contexts/UserContext';
 import { DatePreset } from '../utils/datePresets';
 
 interface Accrual {
@@ -59,6 +60,11 @@ interface Tenant {
 }
 
 export default function AccrualsPage() {
+  const { user, canWrite } = useUser();
+  const canEdit = canWrite('accruals');
+  // Арендаторы могут только просматривать свои начисления, не могут добавлять/редактировать
+  const isTenant = user?.role === 'tenant';
+  const canAddAccrual = !isTenant && (user?.is_admin || user?.is_staff || canEdit);
   const [accruals, setAccruals] = useState<Accrual[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -510,13 +516,20 @@ export default function AccrualsPage() {
     <div>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 md:mb-6">
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">Начисления</h1>
-        <button
-          onClick={handleAdd}
-          className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-        >
-          <PlusIcon className="h-5 w-5 mr-2" />
-          Добавить начисление
-        </button>
+        {canAddAccrual && (
+          <button
+            onClick={handleAdd}
+            className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+          >
+            <PlusIcon className="h-5 w-5 mr-2" />
+            Добавить начисление
+          </button>
+        )}
+        {!canAddAccrual && isTenant && (
+          <div className="text-sm text-slate-500">
+            Просмотр только своих начислений
+          </div>
+        )}
       </div>
 
       {/* KPI Metrics Cards - уменьшена высота карточек еще больше */}

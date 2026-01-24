@@ -1,6 +1,7 @@
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django.db.models import Sum, Q, Min, Max
 from django.utils import timezone
 from datetime import timedelta, datetime
@@ -8,12 +9,14 @@ from decimal import Decimal
 from accruals.models import Accrual
 from contracts.models import Contract
 from payments.models import Payment
+from core.mixins import DataScopingMixin
 
 
-class ForecastViewSet(viewsets.ViewSet):
+class ForecastViewSet(DataScopingMixin, viewsets.ViewSet):
     """
-    ViewSet для прогноза поступлений.
+    ViewSet для прогноза поступлений с RBAC и data scoping.
     """
+    permission_classes = [IsAuthenticated]
     
     @action(detail=False, methods=['get'])
     def calculate(self, request):
@@ -54,7 +57,9 @@ class ForecastViewSet(viewsets.ViewSet):
                 due_date__lte=to_date,
                 due_date__gte=from_date
             )
-        accruals = accruals_query.select_related('contract', 'contract__property', 'contract__tenant')
+        # Применяем data scoping
+        accruals_query = self._scope_for_user(accruals_query, request.user, 'Accrual')
+        accruals = accruals_query.select_related('contract', 'contract__property', 'contract__tenant', 'contract__landlord')
         
         # Получаем уже созданные платежи (поступления)
         # Это фактические поступления, которые уже были получены
@@ -65,7 +70,9 @@ class ForecastViewSet(viewsets.ViewSet):
                 payment_date__lte=to_date,
                 payment_date__gte=from_date
             )
-        payments = payments_query.select_related('contract')
+        # Применяем data scoping
+        payments_query = self._scope_for_user(payments_query, request.user, 'Payment')
+        payments = payments_query.select_related('contract', 'contract__landlord')
         
         # Группировка по месяцам (по месяцу due_date для начислений, по payment_date для платежей)
         # Инициализируем все месяцы в периоде прогноза (если период указан)
@@ -200,12 +207,15 @@ class ForecastViewSet(viewsets.ViewSet):
     
     @action(detail=False, methods=['get'])
     def by_contract(self, request):
-        """Прогноз по договорам"""
+        """Прогноз по договорам с data scoping"""
         today = timezone.now().date()
         days_ahead = int(request.query_params.get('days', 30))
         end_date = today + timedelta(days=days_ahead)
         
-        contracts = Contract.objects.filter(status='active')
+        contracts_query = Contract.objects.filter(status='active')
+        # Применяем data scoping
+        contracts_query = self._scope_for_user(contracts_query, request.user, 'Contract')
+        contracts = contracts_query.select_related('tenant', 'property', 'landlord')
         result = []
         
         for contract in contracts:

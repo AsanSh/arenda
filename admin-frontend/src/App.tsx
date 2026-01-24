@@ -1,11 +1,13 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { DensityProvider } from './contexts/DensityContext';
+import { UserProvider } from './contexts/UserContext';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
-import LoginPage from './pages/LoginPage';
+import LoginPage from './pages/LoginPageOTP';
 import PropertiesPage from './pages/PropertiesPage';
 import TenantsPage from './pages/TenantsPage';
+import TenantDetailPage from './pages/TenantDetailPage';
 import ContractsPage from './pages/ContractsPage';
 import ContractDetailPage from './pages/ContractDetailPage';
 import AccrualsPage from './pages/AccrualsPage';
@@ -18,17 +20,19 @@ import ReportsPage from './pages/ReportsPage';
 import NotificationsPage from './pages/NotificationsPage';
 import SettingsPage from './pages/SettingsPage';
 import HelpPage from './pages/HelpPage';
+import RequestsPage from './pages/RequestsPage';
 
 function App() {
   return (
-    <DensityProvider>
-      <Router
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
-      >
-        <Routes>
+    <UserProvider>
+      <DensityProvider>
+        <Router
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          }}
+        >
+          <Routes>
           {/* Публичный роут для логина */}
           <Route path="/login" element={<LoginPage />} />
           
@@ -69,6 +73,16 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <TenantsPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tenants/:id"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <TenantDetailPage />
                 </Layout>
               </ProtectedRoute>
             }
@@ -183,9 +197,20 @@ function App() {
               </ProtectedRoute>
             }
           />
-        </Routes>
-      </Router>
-    </DensityProvider>
+          <Route
+            path="/requests"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <RequestsPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          </Routes>
+        </Router>
+      </DensityProvider>
+    </UserProvider>
   );
 }
 

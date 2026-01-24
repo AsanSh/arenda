@@ -1,12 +1,32 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+// Определяем API URL в зависимости от окружения
+const getApiUrl = () => {
+  // Если указан явно через переменную окружения
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+  
+  // Если работаем на продакшене (домен assetmanagement.team)
+  if (window.location.hostname === 'assetmanagement.team' || 
+      window.location.hostname === 'www.assetmanagement.team') {
+    // Используем HTTP если SSL еще не настроен, иначе HTTPS
+    const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
+    return `${protocol}://assetmanagement.team/api`;
+  }
+  
+  // Для локальной разработки
+  return 'http://localhost:8000/api';
+};
+
+const API_URL = getApiUrl();
 
 const client = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,  // Важно для Session Authentication (отправка cookies)
 });
 
 // Добавляем JWT токен в заголовки если он есть

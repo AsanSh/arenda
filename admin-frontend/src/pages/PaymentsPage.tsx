@@ -6,6 +6,7 @@ import PeriodFilterBar from '../components/PeriodFilterBar';
 import CounterpartyFilter from '../components/CounterpartyFilter';
 import ActionsMenu from '../components/ui/ActionsMenu';
 import { DatePreset } from '../utils/datePresets';
+import { useUser } from '../contexts/UserContext';
 
 interface Payment {
   id: number;
@@ -23,6 +24,8 @@ interface Payment {
 }
 
 export default function PaymentsPage() {
+  const { user, canWrite } = useUser();
+  const canEdit = canWrite('payments');
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -270,13 +273,15 @@ export default function PaymentsPage() {
                 </td>
                 <td className="px-2 py-0.5 whitespace-nowrap text-right leading-tight">
                   <div className="flex justify-end group">
-                    <ActionsMenu
-                      items={[
-                        { label: 'Редактировать', onClick: () => {/* TODO: добавить редактирование */} },
-                        { label: payment.is_returned ? 'Отменить возврат' : 'Вернуть', onClick: () => handleReturn(payment) },
-                        { label: 'Удалить', onClick: () => handleDelete(payment), variant: 'danger' },
-                      ]}
-                    />
+                    {canEdit && (
+                      <ActionsMenu
+                        items={[
+                          { label: 'Редактировать', onClick: () => {/* TODO: добавить редактирование */} },
+                          { label: payment.is_returned ? 'Отменить возврат' : 'Вернуть', onClick: () => handleReturn(payment) },
+                          { label: 'Удалить', onClick: () => handleDelete(payment), variant: 'danger' },
+                        ]}
+                      />
+                    )}
                   </div>
                 </td>
               </tr>

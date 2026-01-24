@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from django.db import transaction
@@ -13,14 +14,17 @@ from accruals.services import AccrualService
 from deposits.models import Deposit
 from payments.models import Payment, PaymentAllocation
 from payments.services import PaymentAllocationService
+from core.mixins import DataScopingMixin
+from core.permissions import ReadOnlyForClients, CanReadResource, CanWriteResource
 
 
-class ContractViewSet(viewsets.ModelViewSet):
+class ContractViewSet(DataScopingMixin, viewsets.ModelViewSet):
     """
-    ViewSet для управления договорами.
+    ViewSet для управления договорами с RBAC и data scoping.
     При создании автоматически генерирует начисления.
     """
-    queryset = Contract.objects.select_related('property', 'tenant').all()
+    queryset = Contract.objects.select_related('property', 'tenant', 'landlord').all()
+    permission_classes = [IsAuthenticated, CanReadResource, ReadOnlyForClients]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'property', 'tenant']
     search_fields = ['number', 'property__name', 'tenant__name']
