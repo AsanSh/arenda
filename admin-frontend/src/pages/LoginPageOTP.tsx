@@ -131,7 +131,7 @@ export default function LoginPageOTP() {
         setStep('success');
         setStatusMessage(`Вход выполнен! Роль: ${response.data.user.role}`);
 
-        // Получаем полный профиль через /me
+        // Получаем полный профиль через /me и ждем загрузки
         try {
           const meResponse = await client.get('/auth/me/');
           if (meResponse.data) {
@@ -145,15 +145,25 @@ export default function LoginPageOTP() {
             if (meResponse.data.counterparty_id) {
               localStorage.setItem('tenant_id', meResponse.data.counterparty_id.toString());
             }
+            
+            // Ждем немного, чтобы данные успели сохраниться и UserContext успел обновиться
+            // Затем делаем полную перезагрузку страницы для гарантированной загрузки данных
+            setTimeout(() => {
+              window.location.href = '/dashboard';
+            }, 500);
+          } else {
+            // Если профиль не загрузился, все равно редиректим, но с перезагрузкой
+            setTimeout(() => {
+              window.location.href = '/dashboard';
+            }, 500);
           }
         } catch (err) {
           console.error('Error fetching user profile:', err);
+          // В случае ошибки все равно редиректим с перезагрузкой
+          setTimeout(() => {
+            window.location.href = '/dashboard';
+          }, 500);
         }
-
-        // Редирект на дашборд
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 1500);
       } else {
         setError(response.data.error || 'Неверный код');
       }
@@ -228,6 +238,12 @@ export default function LoginPageOTP() {
                   type="tel"
                   value={phone}
                   onChange={handlePhoneChange}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !loading && phone.trim()) {
+                      e.preventDefault();
+                      handleRequestCode();
+                    }
+                  }}
                   placeholder="+996 555 123 456"
                   className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   disabled={loading}
@@ -292,6 +308,13 @@ export default function LoginPageOTP() {
                 onChange={(e) => {
                   const value = e.target.value.replace(/\D/g, '').slice(0, 6);
                   setCode(value);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !loading) {
+                    e.preventDefault();
+                    // Вызываем handleVerifyCode даже если код не полный - функция сама проверит
+                    handleVerifyCode();
+                  }
                 }}
                 placeholder="123456"
                 className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-center text-2xl tracking-widest font-mono"

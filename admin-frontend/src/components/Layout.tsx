@@ -54,8 +54,8 @@ export default function Layout({ children }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [sidebarHovered, setSidebarHovered] = React.useState(false);
   const compact = useCompactStyles();
-  const navigation = useUserMenu(); // Динамическое меню на основе роли
-  const { user } = useUser(); // Получаем данные пользователя для отображения телефона
+  const { user, loading } = useUser(); // Получаем данные пользователя и состояние загрузки
+  const navigation = useUserMenu(); // Динамическое меню на основе роли (вызываем всегда)
   
   // Состояние фиксации сайдбара (сохраняется в localStorage)
   const [isPinned, setIsPinned] = React.useState(() => {
@@ -64,7 +64,7 @@ export default function Layout({ children }: LayoutProps) {
   });
 
   // Сохраняем состояние фиксации в localStorage
-  useEffect(() => {
+  React.useEffect(() => {
     localStorage.setItem('sidebarPinned', String(isPinned));
   }, [isPinned]);
 
@@ -72,6 +72,18 @@ export default function Layout({ children }: LayoutProps) {
   // Компактный sidebar: 56px collapsed, 200px expanded
   const isExpanded = isPinned || sidebarHovered;
   const sidebarWidth = isExpanded ? '200px' : '56px';
+  
+  // Показываем загрузку пока данные пользователя не загружены
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+          <p className="text-slate-600">Загрузка данных пользователя...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleLogout = () => {
     // Полностью очищаем ВСЕ данные авторизации
