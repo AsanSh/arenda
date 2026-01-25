@@ -30,23 +30,42 @@ interface MenuItem {
 export function useUserMenu(): MenuItem[] {
   const { user } = useUser();
 
-  // Отладочная информация
-  if (process.env.NODE_ENV === 'development') {
-    console.log('useUserMenu - user:', user);
-    console.log('useUserMenu - user.is_staff:', user?.is_staff);
-    console.log('useUserMenu - user.is_admin:', user?.is_admin);
-    console.log('useUserMenu - user.role:', user?.role);
-  }
+  // Отладочная информация (всегда включена для отладки)
+  console.log('🔍 useUserMenu - user:', user);
+  console.log('🔍 useUserMenu - user.is_staff:', user?.is_staff);
+  console.log('🔍 useUserMenu - user.is_admin:', user?.is_admin);
+  console.log('🔍 useUserMenu - user.role:', user?.role);
+  console.log('🔍 useUserMenu - user.counterparty:', user?.counterparty);
 
   if (!user) {
-    console.warn('useUserMenu - user is null');
+    console.warn('⚠️ useUserMenu - user is null');
     return [];
   }
 
   // Admin/Staff меню (полное)
   // ВАЖНО: Проверяем ТОЛЬКО если пользователь действительно admin/staff
   // НЕ проверяем is_client, чтобы не пропустить арендаторов в админское меню
-  if ((user.is_staff || user.is_admin) && (user.role === 'admin' || user.role === 'staff')) {
+  // ГАРАНТИЯ: Админ ВСЕГДА получает админское меню, независимо от других условий
+  const isAdminRole = user.role === 'admin';
+  const isStaffRole = user.role === 'staff';
+  const isAdminOrStaff = (user.is_staff || user.is_admin) && (isAdminRole || isStaffRole);
+  
+  // ДОПОЛНИТЕЛЬНАЯ ГАРАНТИЯ: Если роль 'admin' в БД, ВСЕГДА показываем админское меню
+  // Это защита от любых ошибок в данных или логике
+  if (isAdminRole) {
+    console.log('🔒 ADMIN GUARANTEE: User has admin role, forcing admin menu');
+  }
+  
+  console.log('🔍 useUserMenu - isAdminOrStaff check:', {
+    is_staff: user.is_staff,
+    is_admin: user.is_admin,
+    role: user.role,
+    isAdminRole,
+    isStaffRole,
+    result: isAdminOrStaff
+  });
+  
+  if (isAdminOrStaff || isAdminRole) {
     const adminMenu = [
       { name: 'Дашборд', href: '/dashboard', icon: LayoutDashboard },
       { name: 'Счета', href: '/accounts', icon: Wallet },
@@ -66,9 +85,7 @@ export function useUserMenu(): MenuItem[] {
       { name: 'Помощь', href: '/help', icon: HelpCircle },
     ];
     
-    if (process.env.NODE_ENV === 'development') {
-      console.log('useUserMenu - returning admin menu with', adminMenu.length, 'items');
-    }
+    console.log('✅ useUserMenu - returning admin menu with', adminMenu.length, 'items');
     
     return adminMenu;
   }
@@ -76,7 +93,14 @@ export function useUserMenu(): MenuItem[] {
   // Client меню (только просмотр своих данных + заявки)
   // Арендаторы, арендодатели, инвесторы видят только свои данные
   // Проверяем и is_client, и роль напрямую для надежности
-  if (user.is_client || user.role === 'tenant' || user.role === 'landlord' || user.role === 'investor') {
+  const isClient = user.is_client || user.role === 'tenant' || user.role === 'landlord' || user.role === 'investor';
+  console.log('🔍 useUserMenu - isClient check:', {
+    is_client: user.is_client,
+    role: user.role,
+    result: isClient
+  });
+  
+  if (isClient) {
     const menuItems: MenuItem[] = [
       { name: 'Дашборд', href: '/dashboard', icon: LayoutDashboard },
       { divider: true } as any,
@@ -103,8 +127,10 @@ export function useUserMenu(): MenuItem[] {
       { name: 'Помощь', href: '/help', icon: HelpCircle }
     );
     
+    console.log('✅ useUserMenu - returning client menu with', menuItems.length, 'items');
     return menuItems;
   }
 
+  console.warn('⚠️ useUserMenu - no menu matched, returning empty array');
   return [];
 }

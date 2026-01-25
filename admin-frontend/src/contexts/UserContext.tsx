@@ -78,21 +78,35 @@ export function UserProvider({ children }: { children: ReactNode }) {
       const isAuthorized = localStorage.getItem('whatsapp_authorized') === 'true' || 
                           localStorage.getItem('auth_token');
       
+      console.log('🔍 fetchUser - isAuthorized:', isAuthorized);
+      console.log('🔍 fetchUser - whatsapp_authorized:', localStorage.getItem('whatsapp_authorized'));
+      console.log('🔍 fetchUser - auth_token:', localStorage.getItem('auth_token'));
+      
       if (!isAuthorized) {
+        console.warn('⚠️ fetchUser - not authorized, returning null');
         setUser(null);
         setLoading(false);
         return;
       }
       
+      console.log('🔍 fetchUser - calling /auth/me/');
       const response = await client.get('/auth/me/');
+      console.log('🔍 fetchUser - response status:', response.status);
+      console.log('🔍 fetchUser - response data:', response.data);
       const userData = response.data;
       
-      // Отладочная информация
+      // Отладочная информация (всегда включена для отладки)
       console.log('✅ User profile loaded from /auth/me/:', userData);
+      console.log('   - id:', userData.id);
+      console.log('   - username:', userData.username);
       console.log('   - role:', userData.role);
+      console.log('   - role_display:', userData.role_display);
       console.log('   - is_admin:', userData.is_admin);
       console.log('   - is_staff:', userData.is_staff);
       console.log('   - is_client:', userData.is_client);
+      console.log('   - phone:', userData.phone);
+      console.log('   - counterparty:', userData.counterparty);
+      console.log('   - counterparty_id:', userData.counterparty_id);
       
       setUser(userData);
       
