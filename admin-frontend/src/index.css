@@ -1,55 +1,49 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap');
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@layer base {
-  body {
-    margin: 0;
-    font-family: 'Inter', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    background-color: #F8FAFC;
-    font-size: 13px; /* Базовый размер текста */
-    line-height: 1.4; /* Компактная высота строки */
-  }
-
-  code {
-    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+/* Safe area support for iOS */
+@supports (padding: max(0px)) {
+  .safe-area-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
   
-  /* Компактные заголовки */
-  h1 {
-    font-size: 16px;
-    font-weight: 600;
-    line-height: 1.3;
-  }
-  
-  h2 {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.3;
-  }
-  
-  h3 {
-    font-size: 13px;
-    font-weight: 500;
-    line-height: 1.3;
+  .safe-area-top {
+    padding-top: max(1rem, env(safe-area-inset-top));
   }
 }
 
-@layer utilities {
-  .shadow-soft {
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Snap scroll */
+.snap-x {
+  scroll-snap-type: x mandatory;
+}
+
+.snap-start {
+  scroll-snap-align: start;
+}
+
+.snap-mandatory {
+  scroll-snap-type: x mandatory;
+}
+
+/* Animations */
+@keyframes slide-in-from-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
   }
-  
-  .shadow-medium {
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  to {
+    transform: translateX(0);
+    opacity: 1;
   }
-  
-  .shadow-large {
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03), 0 0 0 1px rgba(0, 0, 0, 0.05);
-  }
+}
+
+.animate-in {
+  animation: slide-in-from-right 0.3s ease-out;
 }
