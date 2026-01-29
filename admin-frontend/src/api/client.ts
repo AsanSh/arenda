@@ -34,7 +34,7 @@ client.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('auth_token');
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = `Token ${token}`;
     }
     return config;
   },
@@ -43,18 +43,26 @@ client.interceptors.request.use(
   }
 );
 
-// Обработка ошибок авторизации
+// Единая проверка «мы на странице логина» (с учётом trailing slash и подпути)
+function isOnLoginPage(): boolean {
+  if (typeof window === 'undefined') return false;
+  const path = (window.location.pathname || '/').replace(/\/+$/, '') || '/';
+  return path === '/login' || path.endsWith('/login');
+}
+
+// Обработка ошибок авторизации: не редиректить на /login, если уже на нём — иначе страница логина бесконечно обновляется
 client.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Токен истек или недействителен - перенаправляем на логин
       localStorage.removeItem('auth_token');
       localStorage.removeItem('whatsapp_authorized');
       localStorage.removeItem('user_role');
       localStorage.removeItem('user_id');
       localStorage.removeItem('user_name');
-      window.location.href = '/login';
+      if (!isOnLoginPage()) {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

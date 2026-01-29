@@ -4,7 +4,7 @@ import { DensityProvider } from './contexts/DensityContext';
 import { UserProvider } from './contexts/UserContext';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
-import LoginPage from './pages/LoginPageOTP';
+import LoginPage from './pages/LoginPage';
 import PropertiesPage from './pages/PropertiesPage';
 import TenantsPage from './pages/TenantsPage';
 import TenantDetailPage from './pages/TenantDetailPage';

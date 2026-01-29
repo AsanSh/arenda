@@ -71,19 +71,22 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const fetchUser = async () => {
     try {
+      // На странице логина не вызываем /auth/me/ — иначе при 401 возможен бесконечный редирект/обновление
+      const path = typeof window !== 'undefined' ? (window.location.pathname || '/').replace(/\/+$/, '') || '/' : '';
+      const isLoginPage = path === '/login' || path.endsWith('/login');
+      if (isLoginPage) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
       
-      // Проверяем, есть ли авторизация
       const isAuthorized = localStorage.getItem('whatsapp_authorized') === 'true' || 
                           localStorage.getItem('auth_token');
       
-      console.log('🔍 fetchUser - isAuthorized:', isAuthorized);
-      console.log('🔍 fetchUser - whatsapp_authorized:', localStorage.getItem('whatsapp_authorized'));
-      console.log('🔍 fetchUser - auth_token:', localStorage.getItem('auth_token'));
-      
       if (!isAuthorized) {
-        console.warn('⚠️ fetchUser - not authorized, returning null');
         setUser(null);
         setLoading(false);
         return;

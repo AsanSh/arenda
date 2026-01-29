@@ -55,16 +55,16 @@ export default function LoginPageNew() {
           }
         }
         // Если номер не получен, но инстанс авторизован - используем дефолтный
-        return '7107486710';
+        return '7103495361';
       } else {
         // Инстанс не авторизован - не блокируем, но предупреждаем
         console.warn('Green API instance not authorized, but continuing...');
         setStatusMessage('⚠️ Инстанс Green API не авторизован. Сообщения могут не доходить.');
-        return '7107486710'; // Используем дефолтный номер для QR
+        return '7103495361'; // Используем дефолтный номер для QR
       }
     } catch (err) {
       console.error('Error checking instance state:', err);
-      return '7107486710'; // Fallback на дефолтный номер
+      return '7103495361'; // Fallback на дефолтный номер
     }
   };
 
@@ -204,7 +204,7 @@ export default function LoginPageNew() {
   // Формируем ссылку для QR-кода
   const qrValue = loginMessage || `AMT LOGIN ${attemptId}`;
   // Используем дефолтный номер для QR (этот компонент больше не используется)
-  const phoneForQR = '7107486710';
+  const phoneForQR = '7103495361';
   const whatsappLink = `https://wa.me/${phoneForQR}?text=${encodeURIComponent(qrValue)}`;
 
   return (
@@ -288,7 +288,7 @@ export default function LoginPageNew() {
                 <p className="mb-2">Для работы входа через WhatsApp необходимо:</p>
                 <ol className="list-decimal list-inside space-y-1 text-left">
                   <li>Войти в личный кабинет Green API: <a href="https://console.green-api.com/" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">console.green-api.com</a></li>
-                  <li>Найти инстанс с ID: <strong>7107486710</strong></li>
+                  <li>Найти инстанс с ID: <strong>7103495361</strong></li>
                   <li>Авторизовать инстанс через QR-код в личном кабинете</li>
                   <li>После авторизации обновите эту страницу</li>
                 </ol>

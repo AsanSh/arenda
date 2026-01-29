@@ -2,7 +2,7 @@ from django.urls import path, include
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.routers import DefaultRouter
 from .views import TenantViewSet, ExchangeRateViewSet, RequestViewSet
-from .auth_views import me, check_phone, login_whatsapp
+from .auth_views import me, check_phone, login_whatsapp, LoginView, LogoutView
 from .whatsapp_auth_views import whatsapp_start, whatsapp_status, greenapi_webhook, whatsapp_request_code, whatsapp_verify_code
 
 router = DefaultRouter()
@@ -11,6 +11,8 @@ router.register(r'exchange-rates', ExchangeRateViewSet, basename='exchange-rate'
 router.register(r'requests', RequestViewSet, basename='request')
 
 urlpatterns = [
+    path('auth/login/', LoginView.as_view(), name='login'),
+    path('auth/logout/', LogoutView.as_view(), name='logout'),
     path('auth/me/', me, name='me'),
     path('auth/check-phone/', check_phone, name='check-phone'),
     path('auth/login-whatsapp/', login_whatsapp, name='login-whatsapp'),  # Старый endpoint (deprecated)

@@ -27,18 +27,35 @@ interface MenuItem {
 /**
  * Хук для получения меню навигации в зависимости от роли пользователя
  */
+const ADMIN_MENU_ITEMS: MenuItem[] = [
+  { name: 'Дашборд', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Счета', href: '/accounts', icon: Wallet },
+  { name: 'Депозиты', href: '/deposits', icon: Banknote },
+  { divider: true } as any,
+  { name: 'Недвижимость', href: '/properties', icon: Home },
+  { name: 'Контрагенты', href: '/tenants', icon: Users },
+  { divider: true } as any,
+  { name: 'Договоры', href: '/contracts', icon: FileText },
+  { name: 'Начисления', href: '/accruals', icon: Calculator },
+  { name: 'Поступления', href: '/payments', icon: CreditCard },
+  { name: 'Отчет', href: '/reports', icon: FileBarChart },
+  { divider: true } as any,
+  { name: 'Рассылки', href: '/notifications', icon: Mail },
+  { name: 'Заявки', href: '/requests', icon: MessageSquare },
+  { name: 'Настройки', href: '/settings', icon: Settings },
+  { name: 'Помощь', href: '/help', icon: HelpCircle },
+];
+
 export function useUserMenu(): MenuItem[] {
   const { user } = useUser();
 
-  // Отладочная информация (всегда включена для отладки)
-  console.log('🔍 useUserMenu - user:', user);
-  console.log('🔍 useUserMenu - user.is_staff:', user?.is_staff);
-  console.log('🔍 useUserMenu - user.is_admin:', user?.is_admin);
-  console.log('🔍 useUserMenu - user.role:', user?.role);
-  console.log('🔍 useUserMenu - user.counterparty:', user?.counterparty);
+  // Если user ещё не загружен, но в localStorage роль admin — показываем полное меню (после редиректа с логина)
+  const storedRole = typeof localStorage !== 'undefined' ? localStorage.getItem('user_role') : null;
+  if (!user && storedRole === 'admin') {
+    return ADMIN_MENU_ITEMS;
+  }
 
   if (!user) {
-    console.warn('⚠️ useUserMenu - user is null');
     return [];
   }
 
@@ -66,28 +83,7 @@ export function useUserMenu(): MenuItem[] {
   });
   
   if (isAdminOrStaff || isAdminRole) {
-    const adminMenu = [
-      { name: 'Дашборд', href: '/dashboard', icon: LayoutDashboard },
-      { name: 'Счета', href: '/accounts', icon: Wallet },
-      { name: 'Депозиты', href: '/deposits', icon: Banknote },
-      { divider: true } as any,
-      { name: 'Недвижимость', href: '/properties', icon: Home },
-      { name: 'Контрагенты', href: '/tenants', icon: Users },
-      { divider: true } as any,
-      { name: 'Договоры', href: '/contracts', icon: FileText },
-      { name: 'Начисления', href: '/accruals', icon: Calculator },
-      { name: 'Поступления', href: '/payments', icon: CreditCard },
-      { name: 'Отчет', href: '/reports', icon: FileBarChart },
-      { divider: true } as any,
-      { name: 'Рассылки', href: '/notifications', icon: Mail },
-      { name: 'Заявки', href: '/requests', icon: MessageSquare },
-      { name: 'Настройки', href: '/settings', icon: Settings },
-      { name: 'Помощь', href: '/help', icon: HelpCircle },
-    ];
-    
-    console.log('✅ useUserMenu - returning admin menu with', adminMenu.length, 'items');
-    
-    return adminMenu;
+    return ADMIN_MENU_ITEMS;
   }
 
   // Client меню (только просмотр своих данных + заявки)

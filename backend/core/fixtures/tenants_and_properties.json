@@ -1,0 +1,162 @@
+[
+{
+  "model": "core.tenant",
+  "pk": 1,
+  "fields": {
+    "name": "Осоо Живи и выкупай",
+    "type": "landlord",
+    "contact_person": "Бахиана",
+    "email": "",
+    "phone": null,
+    "inn": "",
+    "address": "",
+    "comment": "",
+    "created_at": "2026-01-17T14:18:56.481Z",
+    "updated_at": "2026-01-17T14:18:56.481Z"
+  }
+},
+{
+  "model": "core.tenant",
+  "pk": 2,
+  "fields": {
+    "name": "Тест арендатор",
+    "type": "tenant",
+    "contact_person": "",
+    "email": "",
+    "phone": null,
+    "inn": "",
+    "address": "",
+    "comment": "",
+    "created_at": "2026-01-17T14:19:05.327Z",
+    "updated_at": "2026-01-17T14:19:05.327Z"
+  }
+},
+{
+  "model": "core.tenant",
+  "pk": 3,
+  "fields": {
+    "name": "Арендатор кв",
+    "type": "tenant",
+    "contact_person": "",
+    "email": "asannameg@gmail.com",
+    "phone": "+996557903999",
+    "inn": "",
+    "address": "",
+    "comment": "",
+    "created_at": "2026-01-17T14:46:42.739Z",
+    "updated_at": "2026-01-21T11:04:07.774Z"
+  }
+},
+{
+  "model": "core.tenant",
+  "pk": 5,
+  "fields": {
+    "name": "Администратор",
+    "type": "staff",
+    "contact_person": "Администратор системы",
+    "email": "admin@amt.kg",
+    "phone": "+996700750606",
+    "inn": "",
+    "address": "",
+    "comment": "Системный администратор для авторизации через WhatsApp",
+    "created_at": "2026-01-23T09:34:34.095Z",
+    "updated_at": "2026-01-29T08:16:35.955Z"
+  }
+},
+{
+  "model": "core.tenant",
+  "pk": 6,
+  "fields": {
+    "name": "Mikana",
+    "type": "tenant",
+    "contact_person": "Milana",
+    "email": "mikana@mikana.ml",
+    "phone": "+996508999333",
+    "inn": "",
+    "address": "",
+    "comment": "",
+    "created_at": "2026-01-23T10:08:13.555Z",
+    "updated_at": "2026-01-23T10:08:13.555Z"
+  }
+},
+{
+  "model": "properties.property",
+  "pk": 1,
+  "fields": {
+    "name": "Магазин Достор",
+    "property_type": "office",
+    "address": "Молодая Гвардия 2а",
+    "area": "123.00",
+    "status": "rented",
+    "block_floor_room": "12",
+    "owner": "2212",
+    "comment": "",
+    "created_at": "2026-01-16T21:56:22.964Z",
+    "updated_at": "2026-01-29T04:50:19.286Z"
+  }
+},
+{
+  "model": "properties.property",
+  "pk": 2,
+  "fields": {
+    "name": "Магистраль",
+    "property_type": "apartment",
+    "address": "Магистраль 2",
+    "area": "45.00",
+    "status": "rented",
+    "block_floor_room": "",
+    "owner": "",
+    "comment": "",
+    "created_at": "2026-01-17T14:29:15.155Z",
+    "updated_at": "2026-01-29T04:50:26.552Z"
+  }
+},
+{
+  "model": "properties.property",
+  "pk": 3,
+  "fields": {
+    "name": "Карпинка",
+    "property_type": "office",
+    "address": "Карпинка 5",
+    "area": "342.00",
+    "status": "rented",
+    "block_floor_room": "",
+    "owner": "",
+    "comment": "",
+    "created_at": "2026-01-21T12:43:31.153Z",
+    "updated_at": "2026-01-29T04:50:00.883Z"
+  }
+},
+{
+  "model": "properties.property",
+  "pk": 4,
+  "fields": {
+    "name": "Шевченко 6 Дерматалогия",
+    "property_type": "medical",
+    "address": "г. Бишкек, ул. Шевченко 6, каб 5",
+    "area": "32.00",
+    "status": "rented",
+    "block_floor_room": "",
+    "owner": "",
+    "comment": "",
+    "created_at": "2026-01-22T18:23:16.590Z",
+    "updated_at": "2026-01-22T18:23:16.590Z"
+  }
+},
+{
+  "model": "properties.property",
+  "pk": 5,
+  "fields": {
+    "name": "dsfdsf",
+    "property_type": "office",
+    "address": "dsfewds",
+    "area": "2340.00",
+    "status": "free",
+    "block_floor_room": "",
+    "owner": "",
+    "comment": "",
+    "created_at": "2026-01-29T04:48:08.899Z",
+    "updated_at": "2026-01-29T04:48:08.899Z"
+  }
+}
+]

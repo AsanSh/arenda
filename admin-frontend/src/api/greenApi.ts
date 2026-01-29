@@ -3,9 +3,9 @@
  * Документация: https://green-api.com/docs/
  */
 
-const GREEN_API_BASE_URL = 'https://api.green-api.com';
-const ID_INSTANCE = '7107486710';
-const API_TOKEN_INSTANCE = '6633644896594f7db36235195f23579325e7a9498eab4411bd';
+const GREEN_API_BASE_URL = 'https://7103.api.greenapi.com';
+const ID_INSTANCE = '7103495361';
+const API_TOKEN_INSTANCE = 'f887fdb89f5b4485baf707c32b854ac197b59329de1b419783';
 
 export interface GreenApiResponse<T = any> {
   success: boolean;

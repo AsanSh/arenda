@@ -1,559 +1,303 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { MessageCircle, RefreshCw, CheckCircle, AlertCircle, Loader } from 'lucide-react';
-import { getQRCode, getStateInstance, logoutInstance } from '../api/greenApi';
+import React, { useState } from 'react';
+import { MessageCircle, CheckCircle, AlertCircle, Loader, User, Lock, Smartphone } from 'lucide-react';
 import client from '../api/client';
 
-type AuthState = 'loading' | 'qr' | 'checking' | 'authorized' | 'error';
+type LoginTab = 'whatsapp' | 'password';
+type WhatsappStep = 'phone' | 'code';
 
 export default function LoginPage() {
-  const navigate = useNavigate();
-  const [authState, setAuthState] = useState<AuthState>('loading');
-  const [qrCode, setQrCode] = useState<string>('');
-  const [error, setError] = useState<string>('');
-  const [phoneNumber, setPhoneNumber] = useState<string>('');
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [loginTab, setLoginTab] = useState<LoginTab>('password');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
 
-  // Вспомогательная функция для безопасной проверки строки
-  const isString = (value: any): value is string => {
-    return typeof value === 'string';
+  // WhatsApp OTP: номер → код
+  const [whatsappStep, setWhatsappStep] = useState<WhatsappStep>('phone');
+  const [whatsappPhone, setWhatsappPhone] = useState('');
+  const [whatsappCode, setWhatsappCode] = useState('');
+  const [whatsappAttemptId, setWhatsappAttemptId] = useState('');
+  const [whatsappError, setWhatsappError] = useState('');
+  const [whatsappLoading, setWhatsappLoading] = useState(false);
+
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+    if (!username.trim() || !password) {
+      setLoginError('Введите логин и пароль');
+      return;
+    }
+    setLoginLoading(true);
+    try {
+      const res = await client.post('/auth/login/', { username: username.trim(), password });
+      const { token, user } = res.data;
+      localStorage.setItem('auth_token', token);
+      localStorage.setItem('whatsapp_authorized', 'true');
+      if (user?.id) localStorage.setItem('user_id', String(user.id));
+      if (user?.username) localStorage.setItem('user_name', user.username);
+      if (user?.role) localStorage.setItem('user_role', user.role);
+      // Полная перезагрузка, чтобы UserContext запросил /auth/me/ и подтянул меню (все вкладки для админа)
+      window.location.href = '/dashboard';
+    } catch (err: any) {
+      setLoginError(err.response?.data?.error || 'Неверный логин или пароль');
+    } finally {
+      setLoginLoading(false);
+    }
   };
 
-  // Получить QR-код
-  const fetchQRCode = async () => {
-    console.log('Fetching QR code...');
-    setAuthState('loading');
-    setError('');
-    
+  // ——— WhatsApp OTP: запрос кода ———
+  const formatPhone = (value: string) => {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length === 0) return '';
+    if (digits.startsWith('996') && digits.length <= 12) {
+      const rest = digits.slice(3);
+      if (rest.length <= 3) return `+996 ${rest}`;
+      if (rest.length <= 6) return `+996 ${rest.slice(0, 3)} ${rest.slice(3)}`;
+      return `+996 ${rest.slice(0, 3)} ${rest.slice(3, 6)} ${rest.slice(6, 9)}`;
+    }
+    if (digits.length <= 9) {
+      if (digits.length <= 3) return `+996 ${digits}`;
+      if (digits.length <= 6) return `+996 ${digits.slice(0, 3)} ${digits.slice(3)}`;
+      return `+996 ${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+    }
+    const limited = digits.slice(0, 12);
+    if (limited.startsWith('996')) return `+996 ${limited.slice(3, 6)} ${limited.slice(6, 9)} ${limited.slice(9)}`;
+    return `+996 ${limited.slice(0, 3)} ${limited.slice(3, 6)} ${limited.slice(6, 9)}`;
+  };
+
+  const handleRequestOtp = async () => {
+    const phone = whatsappPhone.trim().replace(/\D/g, '');
+    if (phone.length < 9) {
+      setWhatsappError('Введите номер телефона (например +996...)');
+      return;
+    }
+    setWhatsappError('');
+    setWhatsappLoading(true);
     try {
-      // Запрашиваем QR-код
-      console.log('Requesting QR code...');
-      const response = await getQRCode();
-      console.log('QR code response:', response);
-      
-      // Если экземпляр уже авторизован, пытаемся разлогинить и получить новый QR
-      if (response.error === 'ALREADY_AUTHORIZED') {
-        console.log('Instance already authorized, attempting logout...');
-        setAuthState('loading');
-        setError('Экземпляр уже авторизован. Выполняется разлогин...');
-        
-        // Пытаемся разлогинить экземпляр
-        const logoutResponse = await logoutInstance();
-        console.log('Logout response:', logoutResponse);
-        
-        if (logoutResponse.success) {
-          console.log('Logout successful, waiting before requesting new QR...');
-          setTimeout(async () => {
-            console.log('Requesting QR code after logout...');
-            setError('Получение нового QR-кода...');
-            const retryResponse = await getQRCode();
-            console.log('Retry QR response:', retryResponse);
-            
-            if (retryResponse.success && retryResponse.data) {
-              const qrData = retryResponse.data;
-              if (isString(qrData)) {
-                setQrCode(qrData);
-                setAuthState('qr');
-                setError('');
-              } else {
-                setError('Неверный формат QR-кода. Попробуйте обновить.');
-                setAuthState('error');
-              }
-            } else if (retryResponse.error === 'ALREADY_AUTHORIZED') {
-              // Рекурсивно пытаемся еще раз после второго разлогина
-              console.log('Still authorized, trying logout again...');
-              await logoutInstance();
-              setTimeout(() => fetchQRCode(), 3000);
-            } else {
-              setError(retryResponse.error || 'Не удалось получить QR-код после разлогина');
-              setAuthState('error');
-            }
-          }, 2000);
-        } else {
-          setError('Не удалось разлогинить экземпляр. Попробуйте разлогинить вручную в личном кабинете Green API.');
-          setAuthState('error');
-        }
+      const res = await client.post<{ success: boolean; attemptId: string; message: string; expiresAt: string }>(
+        '/auth/whatsapp/request-code/',
+        { phone: whatsappPhone.trim() }
+      );
+      if (res.data.success && res.data.attemptId) {
+        setWhatsappAttemptId(res.data.attemptId);
+        setWhatsappStep('code');
+      } else {
+        setWhatsappError('Не удалось отправить код');
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.error || err.message || 'Ошибка при запросе кода';
+      setWhatsappError(msg);
+    } finally {
+      setWhatsappLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const code = whatsappCode.replace(/\D/g, '').slice(0, 6);
+    if (code.length !== 6) {
+      setWhatsappError('Введите 6-значный код');
+      return;
+    }
+    setWhatsappError('');
+    setWhatsappLoading(true);
+    try {
+      const res = await client.post<{
+        success: boolean;
+        token?: string;
+        user?: { id: number; username: string; role: string; phone?: string; counterpartyId?: number };
+      }>('/auth/whatsapp/verify-code/', { attemptId: whatsappAttemptId, code });
+      if (res.data.success && res.data.token && res.data.user) {
+        localStorage.setItem('auth_token', res.data.token);
+        localStorage.setItem('whatsapp_authorized', 'true');
+        localStorage.setItem('user_id', String(res.data.user.id));
+        localStorage.setItem('user_name', res.data.user.username);
+        localStorage.setItem('user_role', res.data.user.role);
+        if (res.data.user.phone) localStorage.setItem('whatsapp_phone', res.data.user.phone);
+        if (res.data.user.counterpartyId) localStorage.setItem('tenant_id', String(res.data.user.counterpartyId));
+        window.location.href = '/dashboard';
         return;
       }
-      
-      // Если успешно получили QR-код
-      if (response.success && response.data) {
-        const qrData = response.data;
-        if (isString(qrData)) {
-          setQrCode(qrData);
-          setAuthState('qr');
-          setError('');
-          
-          // Начинаем проверку статуса авторизации
-          startAuthCheck();
-        } else {
-          setError('Неверный формат QR-кода. Попробуйте обновить.');
-          setAuthState('error');
-        }
-      } else {
-        setError(response.error || 'Не удалось получить QR-код');
-        setAuthState('error');
-      }
-    } catch (error: any) {
-      console.error('Error fetching QR code:', error);
-      let errorMessage = 'Ошибка при получении QR-кода';
-      
-      if (error?.message) {
-        errorMessage = error.message;
-      } else if (error?.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error?.response?.status) {
-        errorMessage = `Ошибка сервера: ${error.response.status}`;
-      } else if (error?.name === 'TypeError' && error?.message?.includes('fetch')) {
-        errorMessage = 'Ошибка подключения к серверу. Проверьте подключение к интернету.';
-      }
-      
-      setError(errorMessage);
-      setAuthState('error');
+      setWhatsappError('Неверный код или сессия истекла');
+    } catch (err: any) {
+      setWhatsappError(err.response?.data?.error || 'Ошибка при проверке кода');
+    } finally {
+      setWhatsappLoading(false);
     }
   };
-
-  // Проверка статуса авторизации
-  const checkAuthState = async () => {
-    try {
-      const stateResponse = await getStateInstance();
-      console.log('State check response:', stateResponse);
-      
-      if (stateResponse.success && stateResponse.data) {
-        const state = stateResponse.data.stateInstance;
-        
-        if (state === 'authorized') {
-          // Экземпляр авторизован, получаем номер телефона
-          console.log('Instance is authorized, fetching phone number...');
-          
-          // Получаем номер телефона через Green API
-          try {
-            const phoneResponse = await fetch(
-              `https://api.green-api.com/waInstance7107486710/getSettings/6633644896594f7db36235195f23579325e7a9498eab4411bd`
-            );
-            const phoneData = await phoneResponse.json();
-            const phone = phoneData.wid?.split('@')[0] || '';
-            
-            if (phone) {
-              setPhoneNumber(phone);
-              
-              // Нормализуем номер телефона для поиска
-              // Убираем все нецифровые символы
-              const normalizedPhone = phone.replace(/\D/g, '');
-              
-              console.log('Phone from Green API:', phone);
-              console.log('Normalized phone:', normalizedPhone);
-              
-              // Создаем все возможные варианты для поиска
-              const searchPhones = new Set<string>();
-              
-              // Добавляем исходный номер (как пришел от Green API)
-              searchPhones.add(phone);
-              searchPhones.add(normalizedPhone);
-              
-              // Если номер начинается с 996 (12 цифр: 996XXXXXXXXX)
-              if (normalizedPhone.startsWith('996') && normalizedPhone.length >= 12) {
-                const without996 = normalizedPhone.slice(3); // 9 цифр без 996
-                
-                // Все варианты с 996
-                searchPhones.add(normalizedPhone); // 996557903999
-                searchPhones.add(`+${normalizedPhone}`); // +996557903999
-                
-                // Все варианты без 996
-                searchPhones.add(without996); // 557903999
-                searchPhones.add(`+${without996}`); // +557903999
-                searchPhones.add(`+996${without996}`); // +996557903999 (дубль, но для надежности)
-              } else if (normalizedPhone.length === 9) {
-                // Если номер из 9 цифр (без 996)
-                searchPhones.add(normalizedPhone); // 557903999
-                searchPhones.add(`996${normalizedPhone}`); // 996557903999
-                searchPhones.add(`+996${normalizedPhone}`); // +996557903999
-                searchPhones.add(`+${normalizedPhone}`); // +557903999
-              }
-              
-              // Также добавляем варианты с пробелами и другими разделителями (на случай если в базе так хранится)
-              const variants = Array.from(searchPhones);
-              for (const variant of variants) {
-                if (variant.includes('996') && variant.length >= 12) {
-                  // Добавляем варианты с пробелами: +996 557 903 999
-                  const digits = variant.replace(/\D/g, '');
-                  if (digits.length === 12) {
-                    searchPhones.add(`+${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)} ${digits.slice(9)}`);
-                  }
-                }
-              }
-              
-              const searchPhonesArray = Array.from(searchPhones);
-              console.log('Phone from Green API:', phone);
-              console.log('Normalized phone:', normalizedPhone);
-              console.log('Searching for phone variants:', searchPhonesArray);
-              
-              // Ищем контрагента по номеру телефона
-              // Пробуем все варианты, но начинаем с наиболее вероятных
-              const priorityPhones = [];
-              if (normalizedPhone.startsWith('996') && normalizedPhone.length >= 12) {
-                // Если номер с 996 (12 цифр)
-                priorityPhones.push(`+${normalizedPhone}`); // +996557903999 - наиболее вероятный формат в базе
-                priorityPhones.push(normalizedPhone); // 996557903999
-              } else if (normalizedPhone.length === 9) {
-                // Если номер без 996 (9 цифр)
-                priorityPhones.push(`+996${normalizedPhone}`); // +996557903999
-                priorityPhones.push(`996${normalizedPhone}`); // 996557903999
-              }
-              
-              // Добавляем остальные варианты
-              const allPhonesSet = new Set([...priorityPhones, ...searchPhonesArray]);
-              const allPhones = Array.from(allPhonesSet);
-              
-              let userFound = false;
-              let tenantFound = false;
-              
-              // Сначала пытаемся найти пользователя через /api/auth/me (если есть токен)
-              // Но для WhatsApp логина нужно найти по номеру телефона
-              // Пробуем найти контрагента, а затем связанного пользователя
-              
-              for (const searchPhone of allPhones) {
-                if (searchPhone && searchPhone.length >= 9) {
-                  try {
-                    console.log(`Trying to find tenant/user with phone: "${searchPhone}"`);
-                    
-                    // Ищем контрагента
-                    const tenantResponse = await client.get(`/tenants/?phone=${encodeURIComponent(searchPhone)}`);
-                    const tenants = tenantResponse.data.results || tenantResponse.data || [];
-                    
-                    console.log(`Found ${tenants.length} tenants for phone "${searchPhone}":`, tenants);
-                    
-                    if (Array.isArray(tenants) && tenants.length > 0) {
-                      const tenant = tenants[0];
-                      console.log('✅ Tenant found:', tenant);
-                      console.log('📱 Phone from Green API:', phone);
-                      console.log('📱 Tenant phone from DB:', tenant.phone);
-                      
-                      // ВАЖНО: Используем номер телефона из Green API, а не из базы данных
-                      // Это гарантирует, что мы логинимся с правильным номером, который отсканировал QR
-                      const phoneToUse = phone; // Номер из Green API (тот, который отсканировал QR)
-                      
-                      // Создаем Django сессию через специальный endpoint
-                      try {
-                        console.log('🔐 Attempting login with phone from Green API:', phoneToUse);
-                        const loginResponse = await client.post('/auth/login-whatsapp/', { phone: phoneToUse });
-                        console.log('✅ WhatsApp login successful:', loginResponse.data);
-                        console.log('👤 Logged in user role:', loginResponse.data.role);
-                        console.log('👤 Logged in user ID:', loginResponse.data.user_id);
-                        console.log('👤 Logged in counterparty ID:', loginResponse.data.counterparty_id);
-                        
-                        // Сохраняем данные
-                        localStorage.setItem('whatsapp_authorized', 'true');
-                        localStorage.setItem('whatsapp_phone', phoneToUse); // Используем номер из Green API
-                        localStorage.setItem('user_id', loginResponse.data.user_id.toString());
-                        localStorage.setItem('user_role', loginResponse.data.role);
-                        localStorage.setItem('user_name', loginResponse.data.username);
-                        localStorage.setItem('user_type', loginResponse.data.role);
-                        if (loginResponse.data.counterparty_id) {
-                          localStorage.setItem('tenant_id', loginResponse.data.counterparty_id.toString());
-                        }
-                        
-                        // Проверяем, что роль соответствует типу контрагента
-                        if (tenant.type === 'tenant' && loginResponse.data.role !== 'tenant') {
-                          console.warn('⚠️ WARNING: Tenant type is "tenant" but user role is:', loginResponse.data.role);
-                        }
-                        
-                        // Получаем полный профиль
-                        try {
-                          const meResponse = await client.get('/auth/me/');
-                          if (meResponse.data) {
-                            console.log('✅ User profile loaded:', meResponse.data);
-                            localStorage.setItem('user_role', meResponse.data.role);
-                            localStorage.setItem('user_id', meResponse.data.id.toString());
-                            localStorage.setItem('user_name', meResponse.data.username);
-                            if (meResponse.data.counterparty_id) {
-                              localStorage.setItem('tenant_id', meResponse.data.counterparty_id.toString());
-                            }
-                          }
-                        } catch (err) {
-                          console.error('Error fetching user profile:', err);
-                        }
-                        
-                        userFound = true;
-                        tenantFound = true;
-                        setAuthState('authorized');
-                        
-                        // Редирект на дашборд
-                        setTimeout(() => {
-                          navigate('/dashboard');
-                          window.location.reload(); // Перезагружаем для обновления UserContext
-                        }, 1500);
-                        break;
-                      } catch (loginErr: any) {
-                        console.error('Error during WhatsApp login:', loginErr);
-                        // Fallback: сохраняем данные контрагента
-                        localStorage.setItem('whatsapp_authorized', 'true');
-                        localStorage.setItem('whatsapp_phone', phoneToUse); // Используем номер из Green API
-                        localStorage.setItem('tenant_id', tenant.id.toString());
-                        localStorage.setItem('tenant_name', tenant.name);
-                        localStorage.setItem('user_type', 'tenant');
-                        userFound = true;
-                        tenantFound = true;
-                        setAuthState('authorized');
-                        setTimeout(() => {
-                          navigate('/dashboard');
-                          window.location.reload();
-                        }, 1500);
-                        break;
-                      }
-                    }
-                  } catch (err) {
-                    console.error(`Error searching tenant with phone "${searchPhone}":`, err);
-                  }
-                }
-              }
-              
-              if (!userFound) {
-                // Пробуем проверить через специальный endpoint и создать сессию
-                try {
-                  const checkResponse = await client.get(`/auth/check-phone/?phone=${encodeURIComponent(phone)}`);
-                  if (checkResponse.data.can_login) {
-                    console.log('✅ Phone found via check-phone endpoint:', checkResponse.data);
-                    
-                    // Создаем сессию через login-whatsapp
-                    // ВАЖНО: Используем номер телефона из Green API
-                    const phoneToUse = phone; // Номер из Green API
-                    console.log('📱 Using phone from Green API for login:', phoneToUse);
-                    
-                    try {
-                      const loginResponse = await client.post('/auth/login-whatsapp/', { phone: phoneToUse });
-                      console.log('✅ WhatsApp login successful:', loginResponse.data);
-                      console.log('👤 Logged in user role:', loginResponse.data.role);
-                      console.log('👤 Logged in user ID:', loginResponse.data.user_id);
-                      
-                      localStorage.setItem('whatsapp_authorized', 'true');
-                      localStorage.setItem('whatsapp_phone', phoneToUse); // Используем номер из Green API
-                      localStorage.setItem('user_id', loginResponse.data.user_id.toString());
-                      localStorage.setItem('user_role', loginResponse.data.role);
-                      localStorage.setItem('user_name', loginResponse.data.username);
-                      localStorage.setItem('user_type', loginResponse.data.role);
-                      if (loginResponse.data.counterparty_id) {
-                        localStorage.setItem('tenant_id', loginResponse.data.counterparty_id.toString());
-                      }
-                      
-                      // Получаем полный профиль
-                      try {
-                        const meResponse = await client.get('/auth/me/');
-                        if (meResponse.data) {
-                          localStorage.setItem('user_role', meResponse.data.role);
-                          localStorage.setItem('user_id', meResponse.data.id.toString());
-                          localStorage.setItem('user_name', meResponse.data.username);
-                          if (meResponse.data.counterparty_id) {
-                            localStorage.setItem('tenant_id', meResponse.data.counterparty_id.toString());
-                          }
-                          
-                          // Определяем редирект на основе роли
-                          // Все роли идут на /dashboard, но видят разные данные благодаря data scoping
-                          const redirectPath = '/dashboard';
-                          console.log(`User logged in with role: ${meResponse.data.role}, redirecting to: ${redirectPath}`);
-                          
-                          setAuthState('authorized');
-                          setTimeout(() => {
-                            navigate(redirectPath);
-                            // Не перезагружаем страницу, чтобы сохранить состояние
-                            // window.location.reload();
-                          }, 500);
-                        }
-                      } catch (err) {
-                        console.error('Error fetching user profile:', err);
-                        // В случае ошибки все равно редиректим на dashboard
-                        setAuthState('authorized');
-                        setTimeout(() => {
-                          navigate('/dashboard');
-                        }, 500);
-                      }
-                      userFound = true;
-                    } catch (loginErr) {
-                      console.error('Error during WhatsApp login:', loginErr);
-                    }
-                  }
-                } catch (err) {
-                  console.error('Error checking phone via endpoint:', err);
-                }
-              }
-              
-              if (!userFound) {
-                const searchedVariants = Array.from(searchPhones).filter(p => p && p.length >= 9);
-                setError(
-                  `Номер телефона ${phone} не найден в системе.\n\n` +
-                  `Проверенные варианты: ${searchedVariants.join(', ')}\n\n` +
-                  `Убедитесь, что номер ${phone} или один из его вариантов указан в системе.\n` +
-                  `Для администратора: убедитесь, что создан пользователь с этим номером.\n` +
-                  `Обратитесь к администратору.`
-                );
-                setAuthState('error');
-                stopAuthCheck();
-              }
-            } else {
-              setError('Не удалось получить номер телефона');
-              setAuthState('error');
-              stopAuthCheck();
-            }
-          } catch (err: any) {
-            console.error('Error fetching phone:', err);
-            setError('Ошибка при получении номера телефона');
-            setAuthState('error');
-            stopAuthCheck();
-          }
-        } else if (state === 'notAuthorized' || state === 'notLogged') {
-          // Еще не авторизован, продолжаем показывать QR
-          console.log('Instance not yet authorized, state:', state);
-          if (authState !== 'qr') {
-            setAuthState('qr');
-          }
-        } else {
-          console.log('Unknown state:', state);
-        }
-      } else {
-        console.error('Failed to get state:', stateResponse.error);
-      }
-    } catch (error: any) {
-      console.error('Error checking auth state:', error);
-    }
-  };
-
-  // Начать проверку авторизации
-  const startAuthCheck = () => {
-    stopAuthCheck();
-    // Проверяем каждые 3 секунды
-    intervalRef.current = setInterval(() => {
-      checkAuthState();
-    }, 3000);
-  };
-
-  // Остановить проверку авторизации
-  const stopAuthCheck = () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  };
-
-  // Инициализация при монтировании
-  useEffect(() => {
-    fetchQRCode();
-    
-    return () => {
-      stopAuthCheck();
-    };
-  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-slate-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
-        {/* Заголовок */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-xl mb-4">
-            <MessageCircle className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">
-            Вход через WhatsApp
-          </h1>
-          <p className="text-sm text-slate-600">
-            Отсканируйте QR-код и отправьте предзаполненное сообщение
-          </p>
+        <h1 className="text-xl font-bold text-slate-900 mb-6 text-center">Вход в систему</h1>
+
+        {/* Вкладки */}
+        <div className="flex rounded-xl bg-slate-100 p-1 mb-6">
+          <button
+            type="button"
+            onClick={() => { setLoginTab('whatsapp'); setLoginError(''); setWhatsappStep('phone'); setWhatsappError(''); setWhatsappCode(''); setWhatsappAttemptId(''); }}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium ${loginTab === 'whatsapp' ? 'bg-white text-indigo-600 shadow' : 'text-slate-600 hover:text-slate-900'}`}
+          >
+            <MessageCircle className="w-4 h-4" />
+            WhatsApp
+          </button>
+          <button
+            type="button"
+            onClick={() => { setLoginTab('password'); setLoginError(''); }}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium ${loginTab === 'password' ? 'bg-white text-indigo-600 shadow' : 'text-slate-600 hover:text-slate-900'}`}
+          >
+            <User className="w-4 h-4" />
+            Логин/Пароль
+          </button>
         </div>
 
-        {/* Состояние загрузки */}
-        {authState === 'loading' && (
-          <div className="flex flex-col items-center justify-center py-12">
-            <Loader className="w-12 h-12 text-indigo-600 animate-spin mb-4" />
-            <p className="text-sm text-slate-600">{error || 'Загрузка QR-кода...'}</p>
-          </div>
-        )}
-
-        {/* QR-код */}
-        {authState === 'qr' && qrCode && (
-          <div className="space-y-6">
-            <div className="flex flex-col items-center">
-              <div className="bg-white p-4 rounded-xl border-2 border-slate-200 shadow-sm">
-                {qrCode && isString(qrCode) && (
-                  <img
-                    src={qrCode}
-                    alt="QR Code"
-                    className="w-64 h-64"
-                    onError={(e) => {
-                      console.error('QR code image error');
-                      (e.target as HTMLImageElement).style.display = 'none';
-                      setError('Неверный формат QR-кода. Попробуйте обновить.');
-                      setAuthState('error');
-                    }}
-                  />
-                )}
-              </div>
-              <div className="mt-4 text-center">
-                <p className="text-xs text-slate-500">
-                  Откройте WhatsApp на телефоне, отсканируйте код и подтвердите вход
-                </p>
+        {/* Форма Логин/Пароль */}
+        {loginTab === 'password' && (
+          <form onSubmit={handlePasswordLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Логин</label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Логин"
+                  autoComplete="username"
+                />
               </div>
             </div>
-
-            <div className="flex items-center justify-center space-x-2 text-sm text-slate-600">
-              <Loader className="w-4 h-4 animate-spin" />
-              <span>Ожидание подтверждения...</span>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Пароль</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Пароль"
+                  autoComplete="current-password"
+                />
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* Успешная авторизация */}
-        {authState === 'authorized' && (
-          <div className="flex flex-col items-center justify-center py-12">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-              <CheckCircle className="w-8 h-8 text-green-600" />
-            </div>
-            <h2 className="text-lg font-semibold text-slate-900 mb-2">
-              Авторизация успешна!
-            </h2>
-            {phoneNumber && (
-              <p className="text-sm text-slate-600 mb-4">
-                Номер: {phoneNumber}
-              </p>
+            {loginError && (
+              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                {loginError}
+              </div>
             )}
-            <p className="text-sm text-slate-500">
-              Перенаправление...
-            </p>
-          </div>
-        )}
-
-        {/* Ошибка */}
-        {authState === 'error' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-center space-x-2 text-red-600 mb-4">
-              <AlertCircle className="w-5 h-5" />
-              <span className="text-sm font-medium">Ошибка авторизации</span>
-            </div>
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-              <p className="text-sm text-red-800">{error}</p>
-            </div>
             <button
-              onClick={fetchQRCode}
-              className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-colors"
+              type="submit"
+              disabled={loginLoading}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium rounded-xl"
             >
-              <RefreshCw className="w-4 h-4" />
-              <span>Попробовать снова</span>
+              {loginLoading ? <Loader className="w-4 h-4 animate-spin" /> : <User className="w-4 h-4" />}
+              Войти
             </button>
-          </div>
+          </form>
         )}
 
-        {/* Информация */}
-        <div className="mt-8 pt-6 border-t border-slate-200">
-          <div className="flex items-start space-x-3">
-            <div className="flex-shrink-0 mt-0.5">
-              <AlertCircle className="w-5 h-5 text-slate-400" />
+        {/* WhatsApp: вход по номеру → одноразовый код */}
+        {loginTab === 'whatsapp' && (
+          <div className="space-y-4">
+            <div className="text-center mb-4">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl mb-2">
+                <MessageCircle className="w-6 h-6 text-white" />
+              </div>
+              <p className="text-sm text-slate-600">
+                Введите номер телефона. Если он есть в контрагентах или у сотрудников — на WhatsApp придёт код для входа.
+              </p>
             </div>
-            <div className="flex-1">
-              <p className="text-xs text-slate-600">
-                Используется Green API для авторизации через WhatsApp. 
-                Ваши данные защищены и не передаются третьим лицам.
+
+            {whatsappStep === 'phone' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Номер телефона</label>
+                  <div className="relative">
+                    <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type="tel"
+                      value={whatsappPhone}
+                      onChange={(e) => setWhatsappPhone(formatPhone(e.target.value))}
+                      placeholder="+996 555 123 456"
+                      className="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                      maxLength={17}
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                {whatsappError && (
+                  <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    {whatsappError}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={handleRequestOtp}
+                  disabled={whatsappLoading || whatsappPhone.replace(/\D/g, '').length < 9}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-medium rounded-xl"
+                >
+                  {whatsappLoading ? <Loader className="w-5 h-5 animate-spin" /> : <MessageCircle className="w-5 h-5" />}
+                  Получить код в WhatsApp
+                </button>
+              </>
+            )}
+
+            {whatsappStep === 'code' && (
+              <>
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
+                  <p className="text-sm text-green-800 font-medium">Код отправлен в WhatsApp</p>
+                  <p className="text-xs text-green-700 mt-1">Номер: {whatsappPhone}. Введите 6 цифр из сообщения.</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Код из WhatsApp</label>
+                  <input
+                    type="text"
+                    value={whatsappCode}
+                    onChange={(e) => setWhatsappCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="123456"
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-center text-xl tracking-widest font-mono focus:ring-2 focus:ring-indigo-500"
+                    maxLength={6}
+                    autoFocus
+                  />
+                </div>
+                {whatsappError && (
+                  <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    {whatsappError}
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setWhatsappStep('phone'); setWhatsappCode(''); setWhatsappAttemptId(''); setWhatsappError(''); }}
+                    disabled={whatsappLoading}
+                    className="flex-1 py-2.5 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50"
+                  >
+                    Назад
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleVerifyOtp}
+                    disabled={whatsappLoading || whatsappCode.length !== 6}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-medium rounded-xl"
+                  >
+                    {whatsappLoading ? <Loader className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
+                    Войти
+                  </button>
+                </div>
+              </>
+            )}
+
+            <div className="mt-6 pt-4 border-t border-slate-200">
+              <p className="text-xs text-slate-500">
+                Доступ зависит от того, кому принадлежит номер: арендатор — свой аккаунт, сотрудник/админ — полный доступ, владелец/арендодатель/инвестор — только свои данные.
               </p>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

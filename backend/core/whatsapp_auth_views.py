@@ -29,9 +29,9 @@ logging.basicConfig(
 )
 
 # Green API настройки
-GREEN_API_ID_INSTANCE = '7107486710'
-GREEN_API_TOKEN = '6633644896594f7db36235195f23579325e7a9498eab4411bd'
-GREEN_API_BASE_URL = 'https://api.green-api.com'
+GREEN_API_ID_INSTANCE = '7103495361'
+GREEN_API_TOKEN = 'f887fdb89f5b4485baf707c32b854ac197b59329de1b419783'
+GREEN_API_BASE_URL = 'https://7103.api.greenapi.com'
 
 
 def send_whatsapp_message(phone: str, message: str) -> tuple[bool, str]:
@@ -114,47 +114,93 @@ def normalize_phone(phone: str) -> str:
     return phone
 
 
+def _digits_only(s: str) -> str:
+    """Только цифры из строки (для сравнения номеров)."""
+    return ''.join(c for c in (s or '') if c.isdigit())
+
+
+def _phone_search_variants(normalized: str) -> list:
+    """Варианты номера для поиска (контрагенты и пользователи), включая с пробелами."""
+    digits = _digits_only(normalized)
+    variants = [normalized, digits]
+    if digits.startswith('996') and len(digits) >= 12:
+        variants.append(digits[3:])  # 9 цифр без 996
+        variants.append(f"+{digits}")
+        # Формат с пробелами: +996 557 903 999
+        variants.append(f"+996 {digits[3:6]} {digits[6:9]} {digits[9:12]}")
+        variants.append(f"+996 {digits[3:6]} {digits[6:9]} {digits[9:]}")
+    elif len(digits) == 9:
+        variants.append(f"996{digits}")
+        variants.append(f"+996{digits}")
+        variants.append(f"+996 {digits[0:3]} {digits[3:6]} {digits[6:9]}")
+    return [v for v in variants if v and len(_digits_only(v)) >= 9]
+
+
 def find_user_by_phone(phone: str) -> tuple[User | None, str]:
     """
     Находит пользователя по номеру телефона.
-    Возвращает (user, error_message)
-    error_message пустой если все ОК
+    Сначала ищем в User (сотрудники/админы с полем phone), затем в контрагентах (Tenant).
+    Возвращает (user, error_message); error_message пустой если ОК.
     """
     normalized = normalize_phone(phone)
-    
     if not normalized:
         return None, "Invalid phone number"
-    
-    # Создаем варианты для поиска
-    search_variants = [
-        normalized,
-        normalized.replace('+', ''),
-        normalized.replace('+996', ''),
-        f"996{normalized.replace('+', '').replace('996', '')}" if normalized.startswith('+996') else normalized,
-    ]
-    
-    # Ищем контрагента по точному совпадению
+
+    search_variants = _phone_search_variants(normalized)
+
+    # 1) Ищем пользователя по полю User.phone (сотрудники, админы — без контрагента или с ним)
+    users_by_phone = User.objects.filter(
+        Q(phone=normalized) | Q(phone__in=search_variants)
+    ).distinct()
+
+    if users_by_phone.count() > 1:
+        logger.error(f"Multiple users for phone {phone}: {users_by_phone.count()}")
+        return None, "PHONE_NOT_UNIQUE"
+    if users_by_phone.count() == 1:
+        user = users_by_phone.first()
+        if user.phone != normalized:
+            user.phone = normalized
+            user.save(update_fields=["phone"])
+        logger.info(f"Found user by phone: {user.username} role={user.role}")
+        return user, ""
+
+    digits_only = _digits_only(normalized)
+
+    # 1b) Fallback: User по «только цифры» (если в БД номер с пробелами/дефисами)
+    if len(digits_only) >= 9:
+        for u in User.objects.exclude(phone__isnull=True).exclude(phone=""):
+            if _digits_only(u.phone) == digits_only or (len(digits_only) >= 12 and _digits_only(u.phone) == digits_only[-9:]):
+                if u.phone != normalized:
+                    u.phone = normalized
+                    u.save(update_fields=["phone"])
+                logger.info(f"Found user by digits match: {u.username} role={u.role}")
+                return u, ""
+
+    # 2) Ищем контрагента (Tenant) по номеру — для арендаторов, арендодателей, инвесторов
     tenant = None
     for variant in search_variants:
+        if len(_digits_only(variant)) < 9:
+            continue
         tenant = Tenant.objects.filter(phone=variant).first()
+        if not tenant:
+            tenant = Tenant.objects.filter(phone__icontains=variant).first()
         if tenant:
-            logger.info(f"Found tenant by exact match: {variant} -> {tenant.name} (type: {tenant.type})")
+            logger.info(f"Found tenant by phone: {tenant.name} type={tenant.type}")
             break
-    
-    # Если не нашли точное совпадение, пробуем частичное
+
+    # 2b) Fallback: поиск Tenant по «только цифры» (если в БД номер с пробелами/дефисами)
+    if not tenant and len(digits_only) >= 9:
+        for t in Tenant.objects.exclude(phone__isnull=True).exclude(phone=""):
+            t_digits = _digits_only(t.phone)
+            if t_digits == digits_only or (len(digits_only) == 12 and t_digits == digits_only[3:]) or (len(digits_only) == 9 and t_digits == f"996{digits_only}"):
+                tenant = t
+                logger.info(f"Found tenant by digits match: {tenant.name} type={tenant.type} phone={t.phone}")
+                break
+
     if not tenant:
-        for variant in search_variants:
-            if len(variant) >= 9:
-                tenant = Tenant.objects.filter(phone__icontains=variant).first()
-                if tenant:
-                    logger.info(f"Found tenant by partial match: {variant} -> {tenant.name} (type: {tenant.type})")
-                    break
-    
-    if not tenant:
-        logger.warning(f"Tenant not found for phone: {phone} (normalized: {normalized})")
+        logger.warning(f"No user or tenant for phone: {phone} (normalized: {normalized}, digits: {digits_only})")
         return None, "USER_NOT_FOUND"
-    
-    # Определяем роль на основе типа контрагента
+
     role_mapping = {
         'tenant': 'tenant',
         'landlord': 'landlord',
@@ -164,18 +210,13 @@ def find_user_by_phone(phone: str) -> tuple[User | None, str]:
         'admin': 'admin',
     }
     user_role = role_mapping.get(tenant.type, 'tenant')
-    
-    # Ищем пользователя по номеру телефона
+
     users = User.objects.filter(
-        Q(phone=normalized) | 
-        Q(phone__in=search_variants) |
-        Q(counterparty=tenant)
+        Q(phone=normalized) | Q(phone__in=search_variants) | Q(counterparty=tenant)
     ).distinct()
-    
     user_count = users.count()
-    
+
     if user_count == 0:
-        # Создаем нового пользователя
         username = f"user_{tenant.id}_{normalized[-9:]}"
         user = User.objects.create(
             username=username,
@@ -185,36 +226,25 @@ def find_user_by_phone(phone: str) -> tuple[User | None, str]:
         )
         user.set_unusable_password()
         user.save()
-        logger.info(f"Created new user: {username} with role {user_role} for tenant {tenant.name}")
+        logger.info(f"Created user: {username} role={user_role} for tenant {tenant.name}")
         return user, ""
-    
+
     if user_count > 1:
-        logger.error(f"Multiple users found for phone {phone} (normalized: {normalized}): {user_count} users")
         return None, "PHONE_NOT_UNIQUE"
-    
-    # Один пользователь найден - обновляем его данные если нужно
+
     user = users.first()
     updated = False
-    
     if user.counterparty != tenant:
-        logger.info(f"Updating user counterparty: {user.counterparty} -> {tenant.name}")
         user.counterparty = tenant
         updated = True
-    
     if user.role != user_role:
-        logger.info(f"Updating user role: {user.role} -> {user_role} (based on tenant type: {tenant.type})")
         user.role = user_role
         updated = True
-    
     if user.phone != normalized:
-        logger.info(f"Updating user phone: {user.phone} -> {normalized}")
         user.phone = normalized
         updated = True
-    
     if updated:
         user.save()
-        logger.info(f"Updated user: {user.username} (role: {user.role}, counterparty: {user.counterparty.name})")
-    
     return user, ""
 
 
@@ -604,24 +634,29 @@ def whatsapp_verify_code(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     
-    # Создаем Django сессию
+    # Создаем Django сессию (для совместимости)
     login(request, user, backend='django.contrib.auth.backends.ModelBackend')
-    
+
+    # Токен для API (фронт использует Authorization: Token <key>)
+    from rest_framework.authtoken.models import Token
+    token, _ = Token.objects.get_or_create(user=user)
+
     # Обновляем попытку входа
     login_attempt.status = 'COMPLETED'
     login_attempt.verified_phone = login_attempt.expected_phone
     login_attempt.user = user
     login_attempt.save()
-    
+
     logger.info(f"OTP login successful: attemptId={attempt_id}, userId={user.id}, role={user.role}")
-    
+
     return Response({
         'success': True,
+        'token': token.key,
         'user': {
             'id': user.id,
             'username': user.username,
             'role': user.role,
-            'phone': user.phone,
+            'phone': user.phone or login_attempt.expected_phone,
             'counterpartyId': user.counterparty_id if user.counterparty else None,
         }
     }, status=status.HTTP_200_OK)

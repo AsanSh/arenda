@@ -89,4 +89,9 @@ cd /root/arenda/infra
 docker-compose restart backend
 
 echo -e "${GREEN}✅ Деплой завершен успешно!${NC}"
-echo -e "${GREEN}Сайт доступен по адресу: https://assetmanagement.team${NC}"
+echo ""
+echo -e "${GREEN}Заходить в систему:${NC}"
+echo -e "  • По домену (без порта): ${GREEN}https://assetmanagement.team${NC} или ${GREEN}http://assetmanagement.team${NC}"
+echo -e "  • Порт 3000 не нужен — он только для локальной разработки (localhost:3000)"
+echo ""
+echo "Если nginx настроен без SSL, используйте конфиг nginx.conf.no-ssl и открывайте http://assetmanagement.team"

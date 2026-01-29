@@ -5,13 +5,61 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
-from django.contrib.auth import get_user_model
+from rest_framework.views import APIView
+from rest_framework.authtoken.models import Token
+from django.contrib.auth import get_user_model, authenticate
 from django.db.models import Q
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from .models import Tenant
 
 User = get_user_model()
+
+
+class LoginView(APIView):
+    """Вход по логину и паролю, возвращает токен."""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        username = request.data.get('username', '').strip()
+        password = request.data.get('password', '')
+        if not username or not password:
+            return Response(
+                {'error': 'Укажите логин и пароль'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        user = authenticate(request, username=username, password=password)
+        if user is None:
+            return Response(
+                {'error': 'Неверный логин или пароль'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        if not user.is_active:
+            return Response(
+                {'error': 'Учётная запись отключена'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        token, _ = Token.objects.get_or_create(user=user)
+        return Response({
+            'token': token.key,
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'first_name': user.first_name or '',
+                'last_name': user.last_name or '',
+                'role': getattr(user, 'role', 'staff'),
+                'phone': getattr(user, 'phone', '') or '',
+            },
+        })
+
+
+class LogoutView(APIView):
+    """Выход: удаление токена."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        Token.objects.filter(user=request.user).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(['GET'])
