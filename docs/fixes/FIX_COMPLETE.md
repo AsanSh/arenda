@@ -11,7 +11,7 @@
 
 ```bash
 # Подключитесь к серверу
-ssh root@5.101.67.195
+ssh root@5.8.10.197
 
 # Проверьте, запущен ли backend
 cd /root/arenda/infra

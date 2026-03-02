@@ -92,10 +92,10 @@ echo ""
 # 4. Проверка DNS
 echo -e "${YELLOW}4. Проверка DNS...${NC}"
 DNS_IP=$(dig +short assetmanagement.team 2>/dev/null | tail -1)
-if [ "$DNS_IP" = "5.101.67.195" ]; then
+if [ "$DNS_IP" = "5.8.10.197" ]; then
     echo -e "${GREEN}✓ DNS настроен правильно: $DNS_IP${NC}"
 else
-    echo -e "${YELLOW}⚠ DNS указывает на: $DNS_IP (ожидается: 5.101.67.195)${NC}"
+    echo -e "${YELLOW}⚠ DNS указывает на: $DNS_IP (ожидается: 5.8.10.197)${NC}"
 fi
 
 echo ""

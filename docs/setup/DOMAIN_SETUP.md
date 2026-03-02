@@ -11,7 +11,7 @@
 ```
 Тип: A
 Имя: @ (или assetmanagement.team)
-Значение: 5.101.67.195
+Значение: 5.8.10.197
 TTL: 3600 (или Auto)
 ```
 
@@ -19,7 +19,7 @@ TTL: 3600 (или Auto)
 ```
 Тип: A
 Имя: www
-Значение: 5.101.67.195
+Значение: 5.8.10.197
 TTL: 3600 (или Auto)
 ```
 
@@ -116,7 +116,7 @@ sudo chmod -R 755 /var/www/assetmanagement.team
 ALLOWED_HOSTS = [
     'assetmanagement.team',
     'www.assetmanagement.team',
-    '5.101.67.195',  # IP сервера (для прямого доступа)
+    '5.8.10.197',  # IP сервера (для прямого доступа)
     'localhost',
     '127.0.0.1',
 ]
@@ -180,11 +180,11 @@ docker-compose up -d
 ```bash
 # Проверка A записи
 dig assetmanagement.team +short
-# Должен вернуть: 5.101.67.195
+# Должен вернуть: 5.8.10.197
 
 # Проверка www
 dig www.assetmanagement.team +short
-# Должен вернуть: 5.101.67.195
+# Должен вернуть: 5.8.10.197
 
 # Проверка с другого сервера
 nslookup assetmanagement.team

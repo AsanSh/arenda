@@ -4,7 +4,7 @@
 
 ```bash
 # 1. Подключитесь к серверу
-ssh root@5.101.67.195
+ssh root@5.8.10.197
 
 # 2. Соберите фронтенд
 cd /root/arenda/admin-frontend

@@ -1,15 +1,15 @@
 # Быстрая настройка домена assetmanagement.team
 
 ## 🎯 Цель
-Подключить домен `assetmanagement.team` к серверу с IP `5.101.67.195`
+Подключить домен `assetmanagement.team` к серверу с IP `5.8.10.197`
 
 ## 📋 Чеклист
 
 ### 1. DNS настройки в Spaceship.com ✅
 - [ ] Войти в личный кабинет Spaceship.com
 - [ ] Найти домен `assetmanagement.team`
-- [ ] Добавить A запись: `@` → `5.101.67.195`
-- [ ] Добавить A запись: `www` → `5.101.67.195`
+- [ ] Добавить A запись: `@` → `5.8.10.197`
+- [ ] Добавить A запись: `www` → `5.8.10.197`
 - [ ] Подождать распространения DNS (5-60 минут)
 
 ### 2. Установка и настройка Nginx ✅
@@ -56,7 +56,7 @@ sudo chown -R www-data:www-data /var/www/assetmanagement.team
 ## 🔍 Проверка DNS
 
 ```bash
-# Должен вернуть 5.101.67.195
+# Должен вернуть 5.8.10.197
 dig assetmanagement.team +short
 dig www.assetmanagement.team +short
 ```

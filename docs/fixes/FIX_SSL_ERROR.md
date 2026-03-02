@@ -23,7 +23,7 @@
 ```bash
 # 1. Убедитесь, что DNS настроен и распространился
 dig assetmanagement.team +short
-# Должен вернуть: 5.101.67.195
+# Должен вернуть: 5.8.10.197
 
 # 2. Установите certbot
 sudo apt install certbot python3-certbot-nginx -y

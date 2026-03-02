@@ -10,7 +10,7 @@
 
    **A запись для @ (основной домен):**
    - Найдите запись: `Host: @`, `Type: A`, `Value: 216.24.57.1`
-   - Измените `Value` на: `5.101.67.195`
+   - Измените `Value` на: `5.8.10.197`
    - Сохраните
 
    **CNAME запись для www:**
@@ -19,7 +19,7 @@
    - **Создайте новую** A запись:
      - Host: `www`
      - Type: `A`
-     - Value: `5.101.67.195`
+     - Value: `5.8.10.197`
    - Сохраните
 
    ⚠️ **НЕ удаляйте записи для Brevo** (brevo1._do, brevo2._dc, _dmarc, TXT с brevo-code) - они нужны для email
@@ -31,7 +31,7 @@
 ### 2️⃣ Установите Nginx на сервере
 
 ```bash
-ssh root@5.101.67.195
+ssh root@5.8.10.197
 sudo apt update
 sudo apt install nginx -y
 sudo systemctl start nginx

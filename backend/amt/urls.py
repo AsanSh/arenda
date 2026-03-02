@@ -3,9 +3,14 @@ URL configuration for amt project.
 """
 from django.contrib import admin
 from django.urls import path, include
+from core.auth_views import LoginView, LogoutView, me
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    # Явные auth-маршруты (на случай если core.urls не загружается или другой порядок на сервере)
+    path('api/auth/login/', LoginView.as_view(), name='api-login'),
+    path('api/auth/logout/', LogoutView.as_view(), name='api-logout'),
+    path('api/auth/me/', me, name='api-me'),
     path('api/', include('core.urls')),
     path('api/dashboard/', include('dashboard.urls')),
     path('api/properties/', include('properties.urls')),

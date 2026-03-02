@@ -12,7 +12,7 @@
 Выполните на сервере:
 
 ```bash
-ssh root@5.101.67.195
+ssh root@5.8.10.197
 cd /root/arenda
 sudo ./QUICK_FIX_EMPTY_RESPONSE.sh
 ```
@@ -179,7 +179,7 @@ sudo ufw reload
 2. Проверьте DNS:
    ```bash
    dig assetmanagement.team +short
-   # Должен вернуть: 5.101.67.195
+   # Должен вернуть: 5.8.10.197
    ```
 
 3. Проверьте доступность с другого компьютера:

@@ -20,7 +20,7 @@ DEBUG = os.environ.get('DEBUG', '0') == '1'
 ALLOWED_HOSTS = [
     'assetmanagement.team',
     'www.assetmanagement.team',
-    '5.101.67.195',  # IP сервера
+    '5.8.10.197',  # IP сервера
     'localhost',
     '127.0.0.1',
 ]
@@ -150,7 +150,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # Для локальной разработки
     "http://localhost:3001",
     "http://127.0.0.1:3000",
-    "http://5.101.67.195:3000",  # Прямой доступ по IP (для разработки)
+    "http://5.8.10.197:3000",  # Прямой доступ по IP (для разработки)
 ]
 
 # В продакшене разрешаем только указанные origins
@@ -167,9 +167,22 @@ CSRF_TRUSTED_ORIGINS = [
     'https://www.assetmanagement.team',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
-    'http://5.101.67.195',
+    'http://5.8.10.197',
 ]
 CSRF_COOKIE_SECURE = False  # Для HTTP, установите True для HTTPS
 CSRF_COOKIE_HTTPONLY = False
 CSRF_USE_SESSIONS = False
 CSRF_COOKIE_SAMESITE = 'Lax'
+
+# Green API — WhatsApp для OTP-логина
+# Настройки из личного кабинета: https://console.green-api.com (apiUrl, idInstance, apiTokenInstance)
+# В продакшене задайте через переменные окружения: GREEN_API_BASE_URL, GREEN_API_ID_INSTANCE, GREEN_API_API_TOKEN
+GREEN_API_BASE_URL = os.environ.get(
+    'GREEN_API_BASE_URL',
+    'https://7103.api.greenapi.com',
+).rstrip('/')
+GREEN_API_ID_INSTANCE = os.environ.get('GREEN_API_ID_INSTANCE', '7103495361')
+GREEN_API_API_TOKEN = os.environ.get(
+    'GREEN_API_API_TOKEN',
+    'f887fdb89f5b4485baf707c32b854ac197b59329de1b419783',  # для dev; в prod задайте через env
+)
