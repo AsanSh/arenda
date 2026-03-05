@@ -21,6 +21,7 @@ import NotificationsPage from './pages/NotificationsPage';
 import SettingsPage from './pages/SettingsPage';
 import HelpPage from './pages/HelpPage';
 import RequestsPage from './pages/RequestsPage';
+import AccessDeniedPage from './pages/AccessDeniedPage';
 
 function App() {
   return (
@@ -33,9 +34,10 @@ function App() {
           }}
         >
           <Routes>
-          {/* Публичный роут для логина */}
           <Route path="/login" element={<LoginPage />} />
-          
+          <Route path="/access-denied" element={<AccessDeniedPage />} />
+          <Route path="/forecast" element={<Navigate to="/reports?type=forecast" replace />} />
+
           {/* Защищенные роуты */}
           <Route
             path="/"

@@ -11,6 +11,7 @@ import CounterpartyFilter from '../components/CounterpartyFilter';
 import { useDensity } from '../contexts/DensityContext';
 import { useUser } from '../contexts/UserContext';
 import { useCompactStyles } from '../hooks/useCompactStyles';
+import { PermissionGuard } from '../components/PermissionGuard';
 import { DatePreset } from '../utils/datePresets';
 
 type SortField = 'number' | 'property_name' | 'tenant_name' | 'start_date' | 'rent_amount' | 'status';
@@ -33,12 +34,9 @@ interface Contract {
 
 export default function ContractsPage() {
   const { isCompact } = useDensity();
-  const { user, canWrite } = useUser();
+  const { user, hasPermissionSection } = useUser();
   const compact = useCompactStyles();
-  const canEdit = canWrite('contracts');
-  // Арендаторы не могут добавлять/редактировать договоры
-  const isTenant = user?.role === 'tenant';
-  const canAddContract = !isTenant && (user?.is_admin || user?.is_staff || canEdit);
+  const canEdit = hasPermissionSection('contracts', 'edit') || !!user?.is_admin || user?.role === 'admin';
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -130,12 +128,32 @@ export default function ContractsPage() {
     try {
       if (editingContract?.id) {
         await client.patch(`/contracts/${editingContract.id}/`, data);
+        setIsDrawerOpen(false);
+        setEditingContract(null);
       } else {
-        await client.post('/contracts/', data);
+        const created = await client.post('/contracts/', data);
+        const newContract = created.data;
+        fetchContracts();
+        // Оставляем форму открытой в режиме редактирования — можно сразу добавить файлы
+        setEditingContract({
+          id: newContract.id,
+          signed_at: newContract.signed_at,
+          property: newContract.property,
+          tenant: newContract.tenant,
+          start_date: newContract.start_date,
+          end_date: newContract.end_date,
+          rent_amount: newContract.rent_amount,
+          currency: newContract.currency,
+          exchange_rate_source: newContract.exchange_rate_source || 'nbkr',
+          due_day: newContract.due_day ?? 25,
+          deposit_enabled: newContract.deposit_enabled ?? false,
+          deposit_amount: newContract.deposit_amount || '',
+          advance_enabled: newContract.advance_enabled ?? false,
+          advance_months: newContract.advance_months ?? 1,
+          status: newContract.status || 'draft',
+          comment: newContract.comment || '',
+        });
       }
-      setIsDrawerOpen(false);
-      setEditingContract(null);
-      fetchContracts();
     } catch (error: any) {
       console.error('Error saving contract:', error);
       const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || 'Ошибка при сохранении';
@@ -146,7 +164,6 @@ export default function ContractsPage() {
   }, [editingContract]);
 
   const handleEdit = async (contract: Contract) => {
-    // Загружаем полные данные договора для редактирования
     try {
       const response = await client.get(`/contracts/${contract.id}/`);
       const fullContract = response.data;
@@ -169,8 +186,11 @@ export default function ContractsPage() {
         comment: fullContract.comment || '',
       });
       setIsDrawerOpen(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching contract details:', error);
+      const msg = error?.response?.data?.detail || error?.response?.data?.error
+        || error?.message || 'Не удалось загрузить договор';
+      alert(`Ошибка: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
     }
   };
 
@@ -272,7 +292,7 @@ export default function ContractsPage() {
           <h1 className={compact.sectionHeader + ' text-slate-900'}>Договоры</h1>
           <p className="mt-1 text-xs md:text-sm text-slate-500">Управление договорами аренды</p>
         </div>
-        {canAddContract && (
+        <PermissionGuard section="contracts" action="create">
           <button
             onClick={() => {
               setEditingContract(null);
@@ -283,7 +303,7 @@ export default function ContractsPage() {
             <Plus className="h-5 w-5 mr-2" />
             Добавить договор
           </button>
-        )}
+        </PermissionGuard>
       </div>
 
       {/* Поиск - сверху отдельно */}
@@ -300,10 +320,10 @@ export default function ContractsPage() {
         </div>
       </div>
 
-      {/* Фильтры в виде вкладок */}
+      {/* Фильтры — flex-wrap, без фикс. ширины, сжимаются */}
       <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-200 mb-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-gray-700 mr-1">Показать:</span>
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
+          <span className="text-xs font-medium text-gray-700 shrink-0">Показать:</span>
           <button
             onClick={() => setFilters({ ...filters, status: '' })}
             className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
@@ -344,8 +364,8 @@ export default function ContractsPage() {
           >
             Завершенные
           </button>
-          <div className="ml-auto flex items-center gap-2">
-            <div className="min-w-[180px]">
+          <div className="ml-auto flex flex-wrap items-center gap-2 min-w-0 flex-1 lg:flex-initial">
+            <div className="min-w-0 w-full sm:w-auto sm:min-w-[140px] lg:min-w-[180px] max-w-full">
               <CounterpartyFilter
                 counterparts={tenants}
                 selected={selectedTenants}
@@ -361,8 +381,8 @@ export default function ContractsPage() {
         </div>
       </div>
 
-      <div className="bg-white shadow rounded-lg overflow-hidden">
-        <div className="overflow-x-auto -mx-4 md:mx-0">
+      <div className="bg-white shadow rounded-lg overflow-hidden max-w-full">
+        <div className="overflow-x-auto no-scrollbar w-full">
           <div className="inline-block min-w-full align-middle">
             <table className="min-w-full divide-y divide-gray-100">
           <thead className="bg-gray-50">

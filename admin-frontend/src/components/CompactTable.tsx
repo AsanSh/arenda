@@ -17,7 +17,7 @@ export function CompactTable({ children, className = '' }: CompactTableProps) {
   return (
     <div className={`bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden ${className}`}>
       {/* Desktop Table */}
-      <div className="hidden md:block overflow-x-auto">
+      <div className="hidden md:block overflow-x-auto no-scrollbar w-full">
         <table className="min-w-full divide-y divide-gray-100">
           {children}
         </table>

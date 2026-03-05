@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
-import { MessageCircle, CheckCircle, AlertCircle, Loader, User, Lock, Smartphone } from 'lucide-react';
+import { MessageCircle, CheckCircle, AlertCircle, Loader, User, Lock, Smartphone, Eye, EyeOff } from 'lucide-react';
 import client from '../api/client';
 
 type LoginTab = 'whatsapp' | 'password';
 type WhatsappStep = 'phone' | 'code';
 
+const SAVED_LOGIN_KEY = 'saved_login_username';
+
 export default function LoginPage() {
   const [loginTab, setLoginTab] = useState<LoginTab>('password');
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState(() => typeof window !== 'undefined' ? (localStorage.getItem(SAVED_LOGIN_KEY) || '') : '');
   const [password, setPassword] = useState('');
+  const [rememberLogin, setRememberLogin] = useState(() => typeof window !== 'undefined' ? !!localStorage.getItem(SAVED_LOGIN_KEY) : false);
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
+  const [passwordVisible, setPasswordVisible] = useState(false);
 
   // WhatsApp OTP: номер → код
   const [whatsappStep, setWhatsappStep] = useState<WhatsappStep>('phone');
@@ -36,7 +40,11 @@ export default function LoginPage() {
       if (user?.id) localStorage.setItem('user_id', String(user.id));
       if (user?.username) localStorage.setItem('user_name', user.username);
       if (user?.role) localStorage.setItem('user_role', user.role);
-      // Полная перезагрузка, чтобы UserContext запросил /auth/me/ и подтянул меню (все вкладки для админа)
+      if (rememberLogin && username.trim()) {
+        localStorage.setItem(SAVED_LOGIN_KEY, username.trim());
+      } else {
+        localStorage.removeItem(SAVED_LOGIN_KEY);
+      }
       window.location.href = '/dashboard';
     } catch (err: any) {
       setLoginError(err.response?.data?.error || 'Неверный логин или пароль');
@@ -172,15 +180,32 @@ export default function LoginPage() {
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
-                  type="password"
+                  type={passwordVisible ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                  className="w-full pl-10 pr-11 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
                   placeholder="Пароль"
                   autoComplete="current-password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setPasswordVisible((v) => !v)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded"
+                  aria-label={passwordVisible ? 'Скрыть пароль' : 'Показать пароль'}
+                >
+                  {passwordVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
+            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={rememberLogin}
+                onChange={(e) => setRememberLogin(e.target.checked)}
+                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              Запомнить логин
+            </label>
             {loginError && (
               <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -220,6 +245,12 @@ export default function LoginPage() {
                       type="tel"
                       value={whatsappPhone}
                       onChange={(e) => setWhatsappPhone(formatPhone(e.target.value))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (!whatsappLoading && whatsappPhone.replace(/\D/g, '').length >= 9) handleRequestOtp();
+                        }
+                      }}
                       placeholder="+996 555 123 456"
                       className="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
                       maxLength={17}
@@ -257,6 +288,12 @@ export default function LoginPage() {
                     type="text"
                     value={whatsappCode}
                     onChange={(e) => setWhatsappCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (!whatsappLoading && whatsappCode.replace(/\D/g, '').length === 6) handleVerifyOtp();
+                      }
+                    }}
                     placeholder="123456"
                     className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-center text-xl tracking-widest font-mono focus:ring-2 focus:ring-indigo-500"
                     maxLength={6}

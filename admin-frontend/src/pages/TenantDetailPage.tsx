@@ -295,7 +295,7 @@ export default function TenantDetailPage() {
         {contracts.length === 0 ? (
           <p className={`${compact.textSize} text-slate-500 text-center py-8`}>Нет договоров</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto no-scrollbar w-full">
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-gray-200">
                 <tr>

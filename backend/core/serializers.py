@@ -1,8 +1,23 @@
 from rest_framework import serializers
-from .models import Tenant, ExchangeRate, Request, InvestorLink, StaffAssignment
+from .models import Tenant, ExchangeRate, Request, InvestorLink, StaffAssignment, AuditLog
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    """Сериализатор для логов изменений в настройках."""
+    user_name = serializers.CharField(source='user.username', read_only=True, allow_null=True)
+    action_display = serializers.CharField(source='get_action_display', read_only=True)
+
+    class Meta:
+        model = AuditLog
+        fields = [
+            'id', 'user', 'user_name', 'action', 'action_display',
+            'target_model', 'target_id', 'target_repr',
+            'old_data', 'new_data', 'reason', 'created_at',
+        ]
+        read_only_fields = fields
 
 
 class TenantSerializer(serializers.ModelSerializer):

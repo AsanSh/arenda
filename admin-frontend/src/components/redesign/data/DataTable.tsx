@@ -101,7 +101,7 @@ export function DataTable<T extends { id: number | string }>({
 
   return (
     <div className={`bg-white rounded-lg border border-slate-200 overflow-hidden ${className}`}>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto no-scrollbar w-full">
         <table className="w-full">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>

@@ -1,6 +1,19 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import client from '../api/client';
 
+/** Права по разделам (от API permissions_sections) — для роутов и меню по типам */
+export interface TenantPermissions {
+  dashboard?: string[];
+  contracts?: string[];
+  accruals?: string[];
+  payments?: string[];
+  deposits?: string[];
+  properties?: string[];
+  tenants?: string[];
+  settings?: string[];
+  menu: string; // 'full' | 'owner' | 'landlord' | 'tenant' | 'employee' | 'master' | 'minimal'
+}
+
 interface UserPermissions {
   can_read_tenants: boolean;
   can_write_tenants: boolean;
@@ -47,6 +60,7 @@ interface User {
   counterparty_id: number | null;
   preferences: Record<string, any>;
   permissions: UserPermissions;
+  permissions_sections?: TenantPermissions;
   is_admin: boolean;
   is_staff: boolean;
   is_client: boolean;
@@ -58,6 +72,10 @@ interface UserContextType {
   error: string | null;
   fetchUser: () => Promise<void>;
   hasPermission: (permission: keyof UserPermissions) => boolean;
+  /** Проверка права по разделу и действию (permissions_sections). */
+  hasPermissionSection: (section: string, action: string) => boolean;
+  /** Тип контрагента/роль для меню: counterparty.type или user.role */
+  tenantType: string | null;
   canWrite: (resource: string) => boolean;
   canRead: (resource: string) => boolean;
 }
@@ -151,9 +169,19 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return user.permissions[permission] || false;
   };
 
+  const hasPermissionSection = (section: string, action: string): boolean => {
+    if (!user?.permissions_sections) return false;
+    const sectionPerms = user.permissions_sections[section as keyof TenantPermissions];
+    if (Array.isArray(sectionPerms)) return sectionPerms.includes(action);
+    return false;
+  };
+
+  const tenantType = user ? (user.counterparty?.type ?? user.role) : null;
+
   const canWrite = (resource: string): boolean => {
     if (!user) return false;
-    if (user.is_admin) return true;
+    // Админ и суперадмин могут редактировать всё
+    if (user.is_admin || user.role === 'admin') return true;
     if (user.is_staff) {
       // Staff может писать только в рамках назначений
       return user.permissions[`can_write_${resource.toLowerCase()}` as keyof UserPermissions] || false;
@@ -168,7 +196,19 @@ export function UserProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <UserContext.Provider value={{ user, loading, error, fetchUser, hasPermission, canWrite, canRead }}>
+    <UserContext.Provider
+      value={{
+        user,
+        loading,
+        error,
+        fetchUser,
+        hasPermission,
+        hasPermissionSection,
+        tenantType,
+        canWrite,
+        canRead,
+      }}
+    >
       {children}
     </UserContext.Provider>
   );

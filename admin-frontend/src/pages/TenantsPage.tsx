@@ -32,7 +32,7 @@ export default function TenantsPage() {
   const { isCompact } = useDensity();
   const { user, canWrite } = useUser();
   const compact = useCompactStyles();
-  const canEdit = canWrite('tenants');
+  const canEdit = canWrite('tenants') || !!user?.is_admin || user?.role === 'admin';
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -79,6 +79,7 @@ export default function TenantsPage() {
       setLoading(false);
     } catch (error) {
       console.error('Error fetching tenants:', error);
+      setTenants([]);
       setLoading(false);
     }
   };
@@ -240,8 +241,8 @@ export default function TenantsPage() {
               className={`px-1.5 py-1 ${compact.smallText} border border-gray-300 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`}
             >
               <option value="">Все типы</option>
-              <option value="staff">Сотрудник</option>
-              <option value="master">Мастер</option>
+              <option value="tenant">Арендатор</option>
+              <option value="landlord">Арендодатель</option>
               <option value="company_owner">Владелец компании</option>
               <option value="property_owner">Хозяин недвижимости</option>
               <option value="investor">Инвестор</option>
@@ -257,7 +258,7 @@ export default function TenantsPage() {
 
       {/* Таблица - Компактная */}
       <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto no-scrollbar w-full">
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="bg-gray-50">
               <tr>

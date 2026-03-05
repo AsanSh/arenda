@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { DataTable, Column } from './DataTable';
 import { DataCardList, CardData } from './DataCardList';
 

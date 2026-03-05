@@ -115,27 +115,29 @@ export default function Layout({ children }: LayoutProps) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Desktop Sidebar - Fintech Style: 64px collapsed, 240px expanded on hover or pinned */}
+    <div className="min-h-screen bg-slate-50 overflow-x-hidden max-w-[100vw]">
+      {/* Desktop Sidebar — сжимается на узких экранах: lg+ виден, md-lg — иконки только */}
       <div 
-        className="hidden md:flex md:fixed md:inset-y-0 md:left-0 md:w-16 md:bg-white md:shadow-xl md:border-r md:border-slate-200 md:transition-all md:duration-300 md:z-30 group"
+        className="hidden md:flex md:fixed md:inset-y-0 md:left-0 md:bg-white md:shadow-xl md:border-r md:border-slate-200 md:transition-all md:duration-300 md:z-30 group shrink-0"
         style={{ width: sidebarWidth }}
         onMouseEnter={() => !isPinned && setSidebarHovered(true)}
         onMouseLeave={() => !isPinned && setSidebarHovered(false)}
       >
         <div className="flex flex-col h-full w-full">
-          {/* Logo - Компактный */}
-          <div className="flex items-center justify-center h-12 border-b border-slate-200 bg-white">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+          {/* Logo — в свёрнутом виде только иконка по центру, в развёрнутом — иконка + текст */}
+          <div className="flex items-center justify-center w-full h-12 border-b border-slate-200 bg-white min-w-0 shrink-0">
+            {isExpanded ? (
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                  <span className="text-white font-bold text-xs">A</span>
+                </div>
+                <h1 className="text-slate-900 font-semibold text-xs whitespace-nowrap">AMT</h1>
+              </div>
+            ) : (
+              <div className="w-7 h-7 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mx-auto">
                 <span className="text-white font-bold text-xs">A</span>
               </div>
-              <h1 className={`text-slate-900 font-semibold text-xs transition-opacity duration-300 whitespace-nowrap ${
-                isExpanded ? 'opacity-100' : 'opacity-0'
-              }`}>
-                AMT
-              </h1>
-            </div>
+            )}
           </div>
           
           {/* Кнопка фиксации - Компактная */}
@@ -162,8 +164,8 @@ export default function Layout({ children }: LayoutProps) {
             </button>
           </div>
           
-          {/* Navigation - Компактная (динамическая по ролям) */}
-          <nav className="flex-1 px-1.5 py-2 space-y-0.5 overflow-y-auto">
+          {/* Navigation — скролл без видимой полосы */}
+          <nav className="flex-1 px-1.5 py-2 space-y-0.5 overflow-y-auto scrollbar-hide min-h-0">
             {navigation.map((item, index) => {
               if (item.divider || ('type' in item && (item as any).type === 'divider')) {
                 return (
@@ -296,7 +298,7 @@ export default function Layout({ children }: LayoutProps) {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <nav className={`flex-1 px-2 py-2 space-y-0.5 overflow-y-auto`}>
+              <nav className={`flex-1 min-h-0 px-2 py-2 space-y-0.5 overflow-y-auto scrollbar-hide`}>
                 {navigation.map((item, index) => {
                   if (item.divider || ('type' in item && (item as any).type === 'divider')) {
                     return <div key={`divider-${index}`} className="my-1 border-t border-slate-200"></div>;
@@ -325,14 +327,23 @@ export default function Layout({ children }: LayoutProps) {
                   return null;
                 })}
               </nav>
+              <div className="border-t border-slate-200 px-2 py-2 mt-auto shrink-0 bg-white">
+                <button
+                  onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
+                  className="w-full flex items-center px-2.5 py-2.5 min-h-[44px] rounded-lg text-red-600 hover:bg-red-50 font-medium"
+                >
+                  <LogOut className={`mr-2 ${compact.sidebarIconSize}`} />
+                  Выйти
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Main content - Компактный: динамический отступ для сайдбара (56px collapsed, 200px expanded) */}
+      {/* Main content — min-w-0 предотвращает overflow по горизонтали */}
       <div 
-        className={`pt-12 md:pt-0 transition-all duration-300 ${isExpanded ? 'md:pl-[200px]' : 'md:pl-14'}`}
+        className={`pt-12 md:pt-0 transition-all duration-300 min-w-0 overflow-x-hidden ${isExpanded ? 'md:pl-[200px]' : 'md:pl-14'}`}
       >
         <main className="p-3 md:p-4 lg:p-4 pb-20 md:pb-4">
           {children}

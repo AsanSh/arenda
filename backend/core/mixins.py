@@ -40,8 +40,8 @@ class DataScopingMixin:
         if not user or not user.is_authenticated:
             return queryset.none()
         
-        # Admin видит всё
-        if user.role == 'admin':
+        # Admin или суперадмин/штатный админ видит всё
+        if getattr(user, 'role', None) == 'admin' or user.is_superuser or user.is_staff:
             return queryset
         
         # Staff видит только назначенные объекты

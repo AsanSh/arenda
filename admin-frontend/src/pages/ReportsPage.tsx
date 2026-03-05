@@ -241,12 +241,12 @@ export default function ReportsPage() {
       : '';
     
     return (
-      <div className="space-y-4">
+      <div className="space-y-2">
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="px-6 py-4 border-b">
-            <h2 className="text-lg font-semibold text-gray-900">Отчет о прибылях и убытках</h2>
+          <div className="px-4 py-2.5 border-b">
+            <h2 className="text-base font-semibold text-gray-900">Отчет о прибылях и убытках</h2>
             {periodText && (
-              <p className="text-sm text-gray-500 mt-1">Период: {periodText}</p>
+              <p className="text-xs text-gray-500 mt-0.5">Период: {periodText}</p>
             )}
           </div>
           
@@ -255,17 +255,17 @@ export default function ReportsPage() {
             <div>
               <button
                 onClick={() => toggleSection('revenue')}
-                className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors text-left"
               >
-                <div className="flex items-center space-x-4">
-                  <span className="text-sm font-medium text-gray-700">Доходы (начислено)</span>
+                <div className="flex items-center space-x-3">
+                  <span className="text-xs font-medium text-gray-700">Доходы (начислено)</span>
                 </div>
-                <div className="flex items-center space-x-4">
-                  <span className="text-lg font-bold text-gray-900">
+                <div className="flex items-center space-x-3">
+                  <span className="text-sm font-semibold text-gray-900">
                     {formatCurrency(summary.revenue || '0', 'KGS')}
                   </span>
                   <svg
-                    className={`w-5 h-5 text-gray-500 transform transition-transform ${
+                    className={`w-4 h-4 text-gray-500 shrink-0 transform transition-transform ${
                       expandedSections.revenue ? 'rotate-180' : ''
                     }`}
                     fill="none"
@@ -277,31 +277,31 @@ export default function ReportsPage() {
                 </div>
               </button>
               {expandedSections.revenue && details?.revenue && (
-                <div className="px-6 py-4 bg-gray-50 border-t">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
+                <div className="px-4 py-2 bg-gray-50 border-t">
+                  <div className="overflow-x-auto no-scrollbar w-full">
+                    <table className="min-w-full divide-y divide-gray-200 text-xs">
                       <thead className="bg-gray-100">
                         <tr>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Недвижимость</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Контрагент</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Договор</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Период</th>
-                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Сумма</th>
+                          <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500">Недвижимость</th>
+                          <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500">Контрагент</th>
+                          <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500">Договор</th>
+                          <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500">Период</th>
+                          <th className="px-3 py-1.5 text-right text-xs font-medium text-gray-500">Сумма</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         {details.revenue.map((item: any) => (
                           <tr key={item.id}>
-                            <td className="px-3 py-2 text-sm">
+                            <td className="px-3 py-1.5 text-xs">
                               <div className="font-medium text-gray-900">{item.property_name}</div>
                               <div className="text-xs text-gray-500">{item.property_address}</div>
                             </td>
-                            <td className="px-3 py-2 text-sm text-gray-500">{item.tenant_name}</td>
-                            <td className="px-3 py-2 text-sm text-gray-500">{item.contract_number}</td>
-                            <td className="px-3 py-2 text-sm text-gray-500">
+                            <td className="px-3 py-1.5 text-xs text-gray-500">{item.tenant_name}</td>
+                            <td className="px-3 py-1.5 text-xs text-gray-500">{item.contract_number}</td>
+                            <td className="px-3 py-1.5 text-xs text-gray-500">
                               {new Date(item.period_start).toLocaleDateString('ru-RU')} - {new Date(item.period_end).toLocaleDateString('ru-RU')}
                             </td>
-                            <td className="px-3 py-2 text-sm font-medium text-right">
+                            <td className="px-3 py-1.5 text-xs font-medium text-right">
                               {formatCurrency(item.amount, item.currency || 'KGS')}
                             </td>
                           </tr>
@@ -317,17 +317,17 @@ export default function ReportsPage() {
             <div>
               <button
                 onClick={() => toggleSection('received')}
-                className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors text-left"
               >
-                <div className="flex items-center space-x-4">
-                  <span className="text-sm font-medium text-gray-700">Поступления</span>
+                <div className="flex items-center space-x-3">
+                  <span className="text-xs font-medium text-gray-700">Поступления</span>
                 </div>
-                <div className="flex items-center space-x-4">
-                  <span className="text-lg font-bold text-green-600">
+                <div className="flex items-center space-x-3">
+                  <span className="text-sm font-semibold text-green-600">
                     {formatCurrency(summary.received || '0', 'KGS')}
                   </span>
                   <svg
-                    className={`w-5 h-5 text-gray-500 transform transition-transform ${
+                    className={`w-4 h-4 text-gray-500 shrink-0 transform transition-transform ${
                       expandedSections.received ? 'rotate-180' : ''
                     }`}
                     fill="none"
@@ -339,33 +339,33 @@ export default function ReportsPage() {
                 </div>
               </button>
               {expandedSections.received && details?.received && (
-                <div className="px-6 py-4 bg-gray-50 border-t">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
+                <div className="px-4 py-2 bg-gray-50 border-t">
+                  <div className="overflow-x-auto no-scrollbar w-full">
+                    <table className="min-w-full divide-y divide-gray-200 text-xs">
                       <thead className="bg-gray-100">
                         <tr>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Недвижимость</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Контрагент</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Договор</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Дата</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Счет</th>
-                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Сумма</th>
+                          <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500">Недвижимость</th>
+                          <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500">Контрагент</th>
+                          <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500">Договор</th>
+                          <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500">Дата</th>
+                          <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500">Счет</th>
+                          <th className="px-3 py-1.5 text-right text-xs font-medium text-gray-500">Сумма</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         {details.received.map((item: any) => (
                           <tr key={item.id}>
-                            <td className="px-3 py-2 text-sm">
+                            <td className="px-3 py-1.5 text-xs">
                               <div className="font-medium text-gray-900">{item.property_name}</div>
                               <div className="text-xs text-gray-500">{item.property_address}</div>
                             </td>
-                            <td className="px-3 py-2 text-sm text-gray-500">{item.tenant_name}</td>
-                            <td className="px-3 py-2 text-sm text-gray-500">{item.contract_number}</td>
-                            <td className="px-3 py-2 text-sm text-gray-500">
+                            <td className="px-3 py-1.5 text-xs text-gray-500">{item.tenant_name}</td>
+                            <td className="px-3 py-1.5 text-xs text-gray-500">{item.contract_number}</td>
+                            <td className="px-3 py-1.5 text-xs text-gray-500">
                               {new Date(item.payment_date).toLocaleDateString('ru-RU')}
                             </td>
-                            <td className="px-3 py-2 text-sm text-gray-500">{item.account_name || '-'}</td>
-                            <td className="px-3 py-2 text-sm font-medium text-green-600 text-right">
+                            <td className="px-3 py-1.5 text-xs text-gray-500">{item.account_name || '-'}</td>
+                            <td className="px-3 py-1.5 text-xs font-medium text-green-600 text-right">
                               {formatCurrency(item.amount, item.currency || 'KGS')}
                             </td>
                           </tr>
@@ -381,17 +381,17 @@ export default function ReportsPage() {
             <div>
               <button
                 onClick={() => toggleSection('expenses')}
-                className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors text-left"
               >
-                <div className="flex items-center space-x-4">
-                  <span className="text-sm font-medium text-gray-700">Расходы</span>
+                <div className="flex items-center space-x-3">
+                  <span className="text-xs font-medium text-gray-700">Расходы</span>
                 </div>
-                <div className="flex items-center space-x-4">
-                  <span className="text-lg font-bold text-red-600">
+                <div className="flex items-center space-x-3">
+                  <span className="text-sm font-semibold text-red-600">
                     {formatCurrency(summary.expenses || '0', 'KGS')}
                   </span>
                   <svg
-                    className={`w-5 h-5 text-gray-500 transform transition-transform ${
+                    className={`w-4 h-4 text-gray-500 shrink-0 transform transition-transform ${
                       expandedSections.expenses ? 'rotate-180' : ''
                     }`}
                     fill="none"
@@ -403,30 +403,30 @@ export default function ReportsPage() {
                 </div>
               </button>
               {expandedSections.expenses && details?.expenses && (
-                <div className="px-6 py-4 bg-gray-50 border-t">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
+                <div className="px-4 py-2 bg-gray-50 border-t">
+                  <div className="overflow-x-auto no-scrollbar w-full">
+                    <table className="min-w-full divide-y divide-gray-200 text-xs">
                       <thead className="bg-gray-100">
                         <tr>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Дата</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Категория</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Получатель</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Счет</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Комментарий</th>
-                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Сумма</th>
+                          <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500">Дата</th>
+                          <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500">Категория</th>
+                          <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500">Получатель</th>
+                          <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500">Счет</th>
+                          <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500">Комментарий</th>
+                          <th className="px-3 py-1.5 text-right text-xs font-medium text-gray-500">Сумма</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         {details.expenses.map((item: any) => (
                           <tr key={item.id}>
-                            <td className="px-3 py-2 text-sm text-gray-500">
+                            <td className="px-3 py-1.5 text-xs text-gray-500">
                               {new Date(item.transaction_date).toLocaleDateString('ru-RU')}
                             </td>
-                            <td className="px-3 py-2 text-sm text-gray-500">{item.category || '-'}</td>
-                            <td className="px-3 py-2 text-sm text-gray-500">{item.recipient || '-'}</td>
-                            <td className="px-3 py-2 text-sm text-gray-500">{item.account_name || '-'}</td>
-                            <td className="px-3 py-2 text-sm text-gray-500">{item.comment || '-'}</td>
-                            <td className="px-3 py-2 text-sm font-medium text-red-600 text-right">
+                            <td className="px-3 py-1.5 text-xs text-gray-500">{item.category || '-'}</td>
+                            <td className="px-3 py-1.5 text-xs text-gray-500">{item.recipient || '-'}</td>
+                            <td className="px-3 py-1.5 text-xs text-gray-500">{item.account_name || '-'}</td>
+                            <td className="px-3 py-1.5 text-xs text-gray-500">{item.comment || '-'}</td>
+                            <td className="px-3 py-1.5 text-xs font-medium text-red-600 text-right">
                               {formatCurrency(item.amount, item.currency || 'KGS')}
                             </td>
                           </tr>
@@ -442,17 +442,17 @@ export default function ReportsPage() {
             <div>
               <button
                 onClick={() => toggleSection('profit')}
-                className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors text-left"
               >
-                <div className="flex items-center space-x-4">
-                  <span className="text-sm font-medium text-gray-700">Прибыль/Убыток</span>
+                <div className="flex items-center space-x-3">
+                  <span className="text-xs font-medium text-gray-700">Прибыль/Убыток</span>
                 </div>
-                <div className="flex items-center space-x-4">
-                  <span className={`text-lg font-bold ${parseFloat(summary.profit_loss || '0') >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <div className="flex items-center space-x-3">
+                  <span className={`text-sm font-semibold ${parseFloat(summary.profit_loss || '0') >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {formatCurrency(summary.profit_loss || '0', 'KGS')}
                   </span>
                   <svg
-                    className={`w-5 h-5 text-gray-500 transform transition-transform ${
+                    className={`w-4 h-4 text-gray-500 shrink-0 transform transition-transform ${
                       expandedSections.profit ? 'rotate-180' : ''
                     }`}
                     fill="none"
@@ -464,8 +464,8 @@ export default function ReportsPage() {
                 </div>
               </button>
               {expandedSections.profit && (
-                <div className="px-6 py-4 bg-gray-50 border-t">
-                  <div className="space-y-2 text-sm">
+                <div className="px-4 py-2 bg-gray-50 border-t">
+                  <div className="space-y-1.5 text-xs">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Поступления:</span>
                       <span className="font-medium text-green-600">{formatCurrency(summary.received || '0', 'KGS')}</span>
@@ -474,9 +474,9 @@ export default function ReportsPage() {
                       <span className="text-gray-600">Расходы:</span>
                       <span className="font-medium text-red-600">-{formatCurrency(summary.expenses || '0', 'KGS')}</span>
                     </div>
-                    <div className="border-t pt-2 flex justify-between">
+                    <div className="border-t pt-1.5 flex justify-between">
                       <span className="font-medium text-gray-900">Прибыль/Убыток:</span>
-                      <span className={`font-bold ${parseFloat(summary.profit_loss || '0') >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      <span className={`font-semibold ${parseFloat(summary.profit_loss || '0') >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {formatCurrency(summary.profit_loss || '0', 'KGS')}
                       </span>
                     </div>
@@ -537,7 +537,7 @@ export default function ReportsPage() {
 
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <h2 className="px-6 py-4 text-lg font-semibold border-b">По месяцам</h2>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto no-scrollbar w-full">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -624,7 +624,7 @@ export default function ReportsPage() {
               <p className="text-sm text-gray-500 mt-1">Период: {periodText}</p>
             )}
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto no-scrollbar w-full">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -713,7 +713,7 @@ export default function ReportsPage() {
             </div>
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto no-scrollbar w-full">
           {tenants.length === 0 && (
             <div className="px-6 py-6 text-sm text-gray-500">Нет просроченных начислений</div>
           )}

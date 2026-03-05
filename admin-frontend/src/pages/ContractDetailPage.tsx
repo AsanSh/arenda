@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import { formatCurrency } from '../utils/currency';
+import {
+  fetchContractFiles,
+  uploadContractFile,
+  deleteContractFile,
+  downloadContractFile,
+  type ContractFile,
+} from '../api/contracts';
+import { FileText, Plus, Trash2 } from 'lucide-react';
 
 interface Contract {
   id: number;
@@ -26,11 +34,15 @@ export default function ContractDetailPage() {
   const [contract, setContract] = useState<Contract | null>(null);
   const [loading, setLoading] = useState(true);
   const [accruals, setAccruals] = useState<any[]>([]);
+  const [files, setFiles] = useState<ContractFile[]>([]);
+  const [fileUploading, setFileUploading] = useState(false);
+  const [fileDownloadingId, setFileDownloadingId] = useState<number | null>(null);
 
   useEffect(() => {
     if (id) {
       fetchContract();
       fetchAccruals();
+      fetchContractFiles(Number(id)).then(setFiles).catch(() => setFiles([]));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -83,6 +95,53 @@ export default function ContractDetailPage() {
       window.alert(error.response?.data?.error || 'Ошибка при генерации начислений');
     }
   };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+    const fileType = (document.getElementById('file-type-select') as HTMLSelectElement)?.value as 'contract' | 'supplement' | 'other' || 'contract';
+    setFileUploading(true);
+    try {
+      const uploaded = await uploadContractFile(Number(id), file, fileType, file.name);
+      setFiles((prev) => [uploaded, ...prev]);
+      e.target.value = '';
+    } catch (err: any) {
+      window.alert(err.response?.data?.file?.[0] || err.response?.data?.detail || 'Ошибка при загрузке файла');
+    } finally {
+      setFileUploading(false);
+    }
+  };
+
+  const handleDownloadFile = async (f: ContractFile) => {
+    if (!id) return;
+    setFileDownloadingId(f.id);
+    try {
+      const blob = await downloadContractFile(Number(id), f.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = f.title || f.file?.split('/').pop() || 'document.pdf';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      window.alert(err.response?.data?.error || err.response?.data?.detail || 'Ошибка при скачивании');
+    } finally {
+      setFileDownloadingId(null);
+    }
+  };
+
+  const handleDeleteFile = async (fileId: number) => {
+    if (!window.confirm('Удалить этот файл?')) return;
+    try {
+      await deleteContractFile(Number(id!), fileId);
+      setFiles((prev) => prev.filter((f) => f.id !== fileId));
+    } catch (err: any) {
+      window.alert(err.response?.data?.error || 'Ошибка при удалении');
+    }
+  };
+
+  const getFileTypeLabel = (t: string) =>
+    t === 'contract' ? 'Договор' : t === 'supplement' ? 'Доп. соглашение' : 'Прочее';
 
   if (loading) {
     return <div className="text-center py-12">Загрузка...</div>;
@@ -187,8 +246,63 @@ export default function ContractDetailPage() {
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-lg shadow">
-        <div className="flex justify-between items-center mb-4">
+        <div className="bg-white p-6 rounded-lg shadow mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">Файлы</h3>
+            <div className="flex items-center gap-2">
+              <select
+                id="file-type-select"
+                className="px-2 py-1 text-sm border border-slate-300 rounded-lg"
+              >
+                <option value="contract">Договор</option>
+                <option value="supplement">Доп. соглашение</option>
+                <option value="other">Прочее</option>
+              </select>
+              <label className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 cursor-pointer text-sm font-medium flex items-center gap-1">
+                <Plus className="w-4 h-4" />
+                {fileUploading ? 'Загрузка...' : 'Добавить файл'}
+                <input
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,application/pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  onChange={handleFileUpload}
+                  disabled={fileUploading}
+                />
+              </label>
+            </div>
+          </div>
+          {files.length === 0 ? (
+            <p className="text-gray-500 text-sm">Нет прикреплённых файлов</p>
+          ) : (
+            <ul className="space-y-2">
+              {files.map((f) => (
+                <li key={f.id} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadFile(f)}
+                    disabled={fileDownloadingId === f.id}
+                    className="flex items-center gap-2 text-indigo-600 hover:text-indigo-800 text-left disabled:opacity-50"
+                  >
+                    <FileText className="w-4 h-4 flex-shrink-0" />
+                    <span className="text-sm font-medium">{f.title || f.file?.split('/').pop() || 'Файл'}</span>
+                    <span className="text-xs text-gray-400">({getFileTypeLabel(f.file_type)})</span>
+                    {fileDownloadingId === f.id ? ' …' : ''}
+                  </button>
+                  <button
+                    onClick={() => handleDeleteFile(f.id)}
+                    className="p-1 text-red-600 hover:bg-red-50 rounded"
+                    title="Удалить"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow">
+          <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">Начисления по договору</h3>
           {accruals.length === 0 && (
             <button

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import client from '../api/client';
+import { fetchContractFiles, uploadContractFile, deleteContractFile, downloadContractFile, type ContractFile } from '../api/contracts';
+import { FileText, Plus, Trash2 } from 'lucide-react';
 
 interface Property {
   id: number;
@@ -48,6 +50,9 @@ export default function ContractForm({ contract, onSubmit, loading = false, isPr
   const [properties, setProperties] = useState<Property[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [discountPeriods, setDiscountPeriods] = useState<DiscountPeriod[]>([]);
+  const [files, setFiles] = useState<ContractFile[]>([]);
+  const [fileUploading, setFileUploading] = useState(false);
+  const [fileDownloadingId, setFileDownloadingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     signed_at: contract?.signed_at || '',
     property: contract?.property?.toString() || '',
@@ -70,6 +75,14 @@ export default function ContractForm({ contract, onSubmit, loading = false, isPr
     fetchProperties();
     fetchTenants();
   }, []);
+
+  useEffect(() => {
+    if (contract?.id) {
+      fetchContractFiles(contract.id).then(setFiles).catch(() => setFiles([]));
+    } else {
+      setFiles([]);
+    }
+  }, [contract?.id]);
 
   useEffect(() => {
     if (contract) {
@@ -130,6 +143,53 @@ export default function ContractForm({ contract, onSubmit, loading = false, isPr
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !contract?.id) return;
+    const fileType = (document.getElementById('contract-form-file-type') as HTMLSelectElement)?.value as 'contract' | 'supplement' | 'other' || 'contract';
+    setFileUploading(true);
+    try {
+      const uploaded = await uploadContractFile(contract.id, file, fileType, file.name);
+      setFiles((prev) => [uploaded, ...prev]);
+      e.target.value = '';
+    } catch (err: any) {
+      alert(err.response?.data?.file?.[0] || err.response?.data?.detail || 'Ошибка при загрузке файла');
+    } finally {
+      setFileUploading(false);
+    }
+  };
+
+  const handleDownloadFile = async (f: ContractFile) => {
+    if (!contract?.id) return;
+    setFileDownloadingId(f.id);
+    try {
+      const blob = await downloadContractFile(contract.id, f.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = f.title || f.file?.split('/').pop() || 'document.pdf';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err.response?.data?.error || err.response?.data?.detail || 'Ошибка при скачивании');
+    } finally {
+      setFileDownloadingId(null);
+    }
+  };
+
+  const handleDeleteFile = async (fileId: number) => {
+    if (!contract?.id || !window.confirm('Удалить этот файл?')) return;
+    try {
+      await deleteContractFile(contract.id, fileId);
+      setFiles((prev) => prev.filter((f) => f.id !== fileId));
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Ошибка при удалении');
+    }
+  };
+
+  const getFileTypeLabel = (t: string) =>
+    t === 'contract' ? 'Договор' : t === 'supplement' ? 'Доп. соглашение' : 'Прочее';
+
   const addDiscountPeriod = () => {
     setDiscountPeriods([...discountPeriods, {
       start_date: formData.start_date || '',
@@ -149,6 +209,8 @@ export default function ContractForm({ contract, onSubmit, loading = false, isPr
     setDiscountPeriods(updated);
   };
 
+  const [activeTab, setActiveTab] = useState<'general' | 'finance' | 'files-status'>('general');
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload = {
@@ -161,15 +223,35 @@ export default function ContractForm({ contract, onSubmit, loading = false, isPr
     await onSubmit(payload);
   };
 
+  const tabs = [
+    { id: 'general' as const, label: 'Общая информация' },
+    { id: 'finance' as const, label: 'Финансы' },
+    { id: 'files-status' as const, label: 'Файлы, статус и доп.' },
+  ];
+
   return (
-    <form id="contract-form" onSubmit={handleSubmit} className="space-y-6">
-      {/* Общая информация */}
+    <form id="contract-form" onSubmit={handleSubmit} className="space-y-4">
+      {/* Вкладки */}
+      <div className="flex gap-1 p-1 bg-slate-100 rounded-xl shrink-0">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
+              activeTab === tab.id ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Контент вкладок */}
       <div>
-        <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-4 pb-2 border-b border-slate-200">
-          Общая информация
-        </h3>
-        <div className="space-y-4">
-          <div>
+        {activeTab === 'general' && (
+          <div className="space-y-4">
+            <div>
             <label className="block text-xs font-medium text-slate-700 mb-1.5">
               Дата подписания *
             </label>
@@ -218,16 +300,8 @@ export default function ContractForm({ contract, onSubmit, loading = false, isPr
                 </option>
               ))}
             </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Даты и условия аренды */}
-      <div>
-        <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-4 pb-2 border-b border-slate-200">
-          Даты и условия аренды
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1.5">
               Дата начала *
@@ -252,29 +326,25 @@ export default function ContractForm({ contract, onSubmit, loading = false, isPr
               className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
             />
           </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1.5">
-              День оплаты
-            </label>
-            <input
-              type="number"
-              min="1"
-              max="31"
-              value={formData.due_day}
-              onChange={(e) => setFormData({ ...formData, due_day: parseInt(e.target.value) })}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-            />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">День оплаты</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={formData.due_day}
+                  onChange={(e) => setFormData({ ...formData, due_day: parseInt(e.target.value) })}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                />
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Финансы */}
-      <div>
-        <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-4 pb-2 border-b border-slate-200">
-          Финансы
-        </h3>
+        {activeTab === 'finance' && (
+          <div className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1.5">
@@ -391,13 +461,75 @@ export default function ContractForm({ contract, onSubmit, loading = false, isPr
             </div>
           )}
         </div>
+          </div>
+        )}
+
+        {activeTab === 'files-status' && (
+          <div className="space-y-4">
+      {/* Файлы */}
+      <div>
+        {contract?.id ? (
+          <>
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <select
+                id="contract-form-file-type"
+                className="px-2 py-1.5 text-sm border border-slate-300 rounded-lg"
+              >
+                <option value="contract">Договор</option>
+                <option value="supplement">Доп. соглашение</option>
+                <option value="other">Прочее</option>
+              </select>
+              <label className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 cursor-pointer text-sm font-medium flex items-center gap-1 inline-flex">
+                <Plus className="w-4 h-4" />
+                {fileUploading ? 'Загрузка...' : 'Добавить файл'}
+                <input
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,application/pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  onChange={handleFileUpload}
+                  disabled={fileUploading}
+                />
+              </label>
+            </div>
+            {files.length === 0 ? (
+              <p className="text-sm text-slate-500">Нет прикреплённых файлов</p>
+            ) : (
+              <ul className="space-y-2">
+                {files.map((f) => (
+                  <li key={f.id} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadFile(f)}
+                      disabled={fileDownloadingId === f.id}
+                      className="flex items-center gap-2 text-indigo-600 hover:text-indigo-800 text-sm text-left disabled:opacity-50"
+                    >
+                      <FileText className="w-4 h-4 flex-shrink-0" />
+                      <span>{f.title || f.file?.split('/').pop() || 'Файл'}</span>
+                      <span className="text-slate-400 text-xs">({getFileTypeLabel(f.file_type)})</span>
+                      {fileDownloadingId === f.id ? ' …' : ''}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteFile(f.id)}
+                      className="p-1 text-red-600 hover:bg-red-50 rounded"
+                      title="Удалить"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-slate-500">
+            Файлы можно добавить после сохранения договора — откройте договор для редактирования и прикрепите документ.
+          </p>
+        )}
       </div>
 
-      {/* Статус и комментарий */}
+      {/* Статус и заметки */}
       <div>
-        <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-4 pb-2 border-b border-slate-200">
-          Статус и заметки
-        </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1.5">
@@ -431,9 +563,6 @@ export default function ContractForm({ contract, onSubmit, loading = false, isPr
 
       {/* Дополнительные условия */}
       <div>
-        <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-4 pb-2 border-b border-slate-200">
-          Дополнительные условия
-        </h3>
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
             <p className="text-xs text-blue-700">
@@ -517,6 +646,9 @@ export default function ContractForm({ contract, onSubmit, loading = false, isPr
             + Добавить льготный период
           </button>
         </div>
+      </div>
+          </div>
+        )}
       </div>
     </form>
   );

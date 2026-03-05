@@ -1,8 +1,31 @@
 from rest_framework import serializers
 from decimal import Decimal
-from .models import Contract
+from .models import Contract, ContractFile
 from properties.serializers import PropertyListSerializer
 from core.models import Tenant
+
+
+class ContractFileSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ContractFile
+        fields = ['id', 'file_type', 'file', 'file_url', 'title', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+    def get_file_url(self, obj):
+        if not obj.file:
+            return None
+        request = self.context.get('request')
+        if request:
+            try:
+                return request.build_absolute_uri(obj.file.url)
+            except Exception:
+                pass
+        try:
+            return obj.file.url if obj.file else None
+        except Exception:
+            return None
 
 
 class TenantSerializer(serializers.ModelSerializer):
@@ -15,7 +38,8 @@ class TenantSerializer(serializers.ModelSerializer):
 class ContractSerializer(serializers.ModelSerializer):
     property_detail = PropertyListSerializer(source='property', read_only=True)
     tenant_detail = TenantSerializer(source='tenant', read_only=True)
-    
+    files = ContractFileSerializer(read_only=True, many=True)
+
     class Meta:
         model = Contract
         fields = [
@@ -24,7 +48,7 @@ class ContractSerializer(serializers.ModelSerializer):
             'rent_amount', 'currency', 'exchange_rate_source', 'due_day',
             'deposit_enabled', 'deposit_amount',
             'advance_enabled', 'advance_months',
-            'status', 'comment', 'created_at', 'updated_at'
+            'status', 'comment', 'files', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'number', 'created_at', 'updated_at']
     

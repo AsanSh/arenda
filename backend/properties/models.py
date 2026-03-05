@@ -39,6 +39,7 @@ class Property(models.Model):
         verbose_name='Блок/Этаж/№ помещения'
     )
     owner = models.CharField(max_length=255, blank=True, verbose_name='Владелец')
+    in_collateral = models.BooleanField(default=False, verbose_name='В залоге')
     comment = models.TextField(blank=True, verbose_name='Комментарий')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

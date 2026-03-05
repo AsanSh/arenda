@@ -3,6 +3,8 @@ URL configuration for amt project.
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
 from core.auth_views import LoginView, LogoutView, me
 
 urlpatterns = [
@@ -24,3 +26,5 @@ urlpatterns = [
     path('api/reports/', include('reports.urls')),
     path('api/notifications/', include('notifications.urls')),
 ]
+# Раздаём media в любом режиме (nginx проксирует /media/ на Django)
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

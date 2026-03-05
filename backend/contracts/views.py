@@ -5,17 +5,14 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from django.db import transaction
-from datetime import datetime
-from .models import Contract
-from .serializers import ContractSerializer, ContractListSerializer
-from decimal import Decimal
+from django.http import FileResponse
+
+from .models import Contract, ContractFile
+from .serializers import ContractSerializer, ContractListSerializer, ContractFileSerializer
+from .services import ContractService
 from accruals.models import Accrual
-from accruals.services import AccrualService
-from deposits.models import Deposit
-from payments.models import Payment, PaymentAllocation
-from payments.services import PaymentAllocationService
 from core.mixins import DataScopingMixin
-from core.permissions import ReadOnlyForClients, CanReadResource, CanWriteResource
+from core.permissions import ReadOnlyForClients, CanReadResource, CanWriteResource, CanReadResource, CanWriteResource
 
 
 class ContractViewSet(DataScopingMixin, viewsets.ModelViewSet):
@@ -23,7 +20,9 @@ class ContractViewSet(DataScopingMixin, viewsets.ModelViewSet):
     ViewSet для управления договорами с RBAC и data scoping.
     При создании автоматически генерирует начисления.
     """
-    queryset = Contract.objects.select_related('property', 'tenant', 'landlord').all()
+    queryset = Contract.objects.select_related(
+        'property', 'tenant', 'landlord'
+    ).prefetch_related('files').all()
     permission_classes = [IsAuthenticated, CanReadResource, ReadOnlyForClients]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'property', 'tenant']
@@ -36,147 +35,40 @@ class ContractViewSet(DataScopingMixin, viewsets.ModelViewSet):
             return ContractListSerializer
         return ContractSerializer
     
-    def generate_contract_number(self):
-        """Генерация номера договора: AMT-YYYY-XXXXXX"""
-        year = datetime.now().year
-        last_contract = Contract.objects.filter(number__startswith=f'AMT-{year}').order_by('-number').first()
-        
-        if last_contract:
-            try:
-                last_num = int(last_contract.number.split('-')[-1])
-                new_num = last_num + 1
-            except (ValueError, IndexError):
-                new_num = 1
-        else:
-            new_num = 1
-        
-        return f"AMT-{year}-{new_num:06d}"
-    
     def perform_create(self, serializer):
-        # Генерируем номер договора
-        if not serializer.validated_data.get('number'):
-            serializer.validated_data['number'] = self.generate_contract_number()
-        
+        if not serializer.validated_data.get("number"):
+            serializer.validated_data["number"] = ContractService.generate_contract_number()
         contract = serializer.save()
-        
-        # Автоматическая генерация начислений
-        AccrualService.generate_accruals_for_contract(contract)
-        
-        # Создание депозита, если включен
-        if contract.deposit_enabled:
-            from accounts.models import Account
-            # Находим счет по контрагенту и валюте
-            account = Account.objects.filter(
-                owner=contract.tenant,
-                currency=contract.currency,
-                is_active=True
-            ).first()
-            
-            # Если счета нет, создаем общий счет для контрагента
-            if not account:
-                account = Account.objects.create(
-                    name=f"{contract.tenant.name} ({contract.get_currency_display()})",
-                    account_type='bank',
-                    currency=contract.currency,
-                    owner=contract.tenant,
-                    is_active=True
-                )
-            
-            Deposit.objects.create(
-                contract=contract,
-                amount=contract.deposit_amount,
-                balance=Decimal('0')
-            )
-            
-            # Увеличиваем баланс счета на сумму депозита
-            account.balance += contract.deposit_amount
-            account.save()
-        
-        # Создание аванса, если включен
-        if contract.advance_enabled:
-            advance_amount = contract.rent_amount * contract.advance_months
-            payment = Payment.objects.create(
-                contract=contract,
-                amount=advance_amount,
-                payment_date=contract.start_date,
-                comment='Аванс'
-            )
-            # Распределение аванса по первым начислениям
-            PaymentAllocationService.allocate_payment_fifo(payment)
-    
+        ContractService.create_contract_with_accruals_and_deposit(contract)
+
     def perform_update(self, serializer):
-        """При обновлении договора проверяем, нужно ли создать начисления"""
-        old_contract = Contract.objects.get(pk=serializer.instance.pk)
-        old_status = old_contract.status
-        old_rent_amount = old_contract.rent_amount
-        old_start_date = old_contract.start_date
-        old_end_date = old_contract.end_date
-        
+        old = serializer.instance
+        old_status = old.status
+        old_rent = old.rent_amount
+        old_start = old.start_date
+        old_end = old.end_date
         contract = serializer.save()
-        
-        # Если статус изменился на active и начислений нет - создаем их
-        if contract.status == 'active' and old_status != 'active':
-            accruals_count = Accrual.objects.filter(contract=contract).count()
-            if accruals_count == 0:
-                AccrualService.generate_accruals_for_contract(contract)
-        # Если изменилась ставка аренды - исправляем planned начисления
-        elif old_rent_amount != contract.rent_amount:
-            AccrualService.fix_accruals_for_contract(contract)
-        # Если изменились даты - пересоздаем planned начисления
-        elif (old_start_date != contract.start_date or old_end_date != contract.end_date):
-            Accrual.objects.filter(contract=contract, status='planned').delete()
-            AccrualService.generate_accruals_for_contract(contract)
-    
+        ContractService.update_contract_accruals(
+            contract, old_status, old_rent, old_start, old_end
+        )
+
     def destroy(self, request, *args, **kwargs):
-        """Переопределяем destroy для каскадного удаления всех связанных операций"""
         instance = self.get_object()
-        
         try:
-            with transaction.atomic():
-                # Подсчитываем что будет удалено (для информативности)
-                accruals_count = Accrual.objects.filter(contract=instance).count()
-                payments_count = Payment.objects.filter(contract=instance).count()
-                deposits_count = Deposit.objects.filter(contract=instance).exists()
-                
-                # Получаем ID платежей перед удалением
-                payment_ids = list(Payment.objects.filter(contract=instance).values_list('id', flat=True))
-                
-                # Удаляем PaymentAllocation (они связаны с Payment через CASCADE, 
-                # но лучше удалить явно для ясности)
-                if payment_ids:
-                    PaymentAllocation.objects.filter(payment_id__in=payment_ids).delete()
-                
-                # Удаляем Payment (они имеют PROTECT, поэтому удаляем вручную)
-                Payment.objects.filter(contract=instance).delete()
-                
-                # Accrual удалятся автоматически (CASCADE в модели)
-                # Deposit удалится автоматически (CASCADE в модели)
-                # Expense останется, но contract будет NULL (SET_NULL в модели)
-                
-                # Удаляем сам договор
-                contract_number = instance.number
-                instance.delete()
-                
-            return Response(
-                {
-                    'message': f'Договор "{contract_number}" и все связанные операции успешно удалены. '
-                              f'Удалено: {accruals_count} начислений, {payments_count} платежей, {1 if deposits_count else 0} депозитов.'
-                },
-                status=status.HTTP_200_OK
-            )
+            result = ContractService.delete_contract_cascade(instance)
+            return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
             return Response(
-                {'error': f'Ошибка при удалении договора: {str(e)}'},
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": f"Ошибка при удалении договора: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-    
-    @action(detail=True, methods=['post'])
+
+    @action(detail=True, methods=["post"])
     def end_contract(self, request, pk=None):
         """Завершить договор"""
         contract = self.get_object()
-        contract.status = 'ended'
-        contract.save()
-        return Response({'status': 'Договор завершён'})
+        ContractService.end_contract(contract)
+        return Response({"status": "Договор завершён"})
     
     @action(detail=True, methods=['post'])
     def generate_accruals(self, request, pk=None):
@@ -200,7 +92,49 @@ class ContractViewSet(DataScopingMixin, viewsets.ModelViewSet):
         from accruals.serializers import AccrualListSerializer
         serializer = AccrualListSerializer(accruals, many=True)
         return Response(serializer.data)
-    
+
+    @action(detail=True, methods=['get', 'post', 'delete'], url_path='files')
+    def files(self, request, pk=None):
+        """Получить, добавить или удалить файлы к договору"""
+        contract = self.get_object()
+        if request.method == 'GET':
+            files = ContractFile.objects.filter(contract=contract).order_by('-created_at')
+            serializer = ContractFileSerializer(files, many=True, context={'request': request})
+            return Response(serializer.data)
+        if request.method == 'POST':
+            serializer = ContractFileSerializer(data=request.data, context={'request': request})
+            serializer.is_valid(raise_exception=True)
+            serializer.save(contract=contract)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        # DELETE — передать file_id в теле: {"file_id": 123}
+        file_id = request.data.get('file_id') or request.query_params.get('file_id')
+        if not file_id:
+            return Response({'error': 'Укажите file_id'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            f = ContractFile.objects.get(contract=contract, id=file_id)
+            f.file.delete(save=False)
+            f.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except ContractFile.DoesNotExist:
+            return Response({'error': 'Файл не найден'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['get'], url_path=r'files/(?P<file_id>\d+)/download')
+    def download_file(self, request, pk=None, file_id=None):
+        """Скачать файл договора (с авторизацией)"""
+        contract = self.get_object()
+        try:
+            cf = ContractFile.objects.get(contract=contract, id=file_id)
+        except ContractFile.DoesNotExist:
+            return Response({'error': 'Файл не найден'}, status=status.HTTP_404_NOT_FOUND)
+        if not cf.file:
+            return Response({'error': 'Файл отсутствует'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            fh = cf.file.open('rb')
+        except (ValueError, OSError):
+            return Response({'error': 'Файл недоступен'}, status=status.HTTP_404_NOT_FOUND)
+        filename = cf.title or (cf.file.name.split('/')[-1] if cf.file.name else 'document.pdf')
+        return FileResponse(fh, as_attachment=True, filename=filename)
+
     @action(detail=False, methods=['post'])
     def generate_all_accruals(self, request):
         """Сгенерировать начисления для всех активных договоров без начислений"""

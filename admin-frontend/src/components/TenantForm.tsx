@@ -13,11 +13,10 @@ interface Tenant {
   comment: string;
 }
 
+/** Только типы контрагентов (не сотрудники). Сотрудники — в Настройки → Сотрудники. */
 const TENANT_TYPES = [
   { value: 'tenant', label: 'Арендатор' },
   { value: 'landlord', label: 'Арендодатель' },
-  { value: 'staff', label: 'Сотрудник' },
-  { value: 'master', label: 'Мастер' },
   { value: 'company_owner', label: 'Владелец компании' },
   { value: 'property_owner', label: 'Хозяин недвижимости' },
   { value: 'investor', label: 'Инвестор' },
@@ -99,11 +98,10 @@ export default function TenantForm({ tenant, onSubmit, loading = false }: Tenant
 
       <div>
         <label className="block text-xs font-medium text-gray-700 mb-0.5">
-          Email *
+          Email
         </label>
         <input
           type="email"
-          required
           value={formData.email}
           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
           className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"

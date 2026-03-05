@@ -626,7 +626,7 @@ export default function AccrualsPage() {
           >
             Оплачено
           </button>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-2 min-w-0 flex-1 lg:flex-initial">
             <select
               value={filters.utility_type}
               onChange={(e) => setFilters({ ...filters, utility_type: e.target.value })}
@@ -640,7 +640,7 @@ export default function AccrualsPage() {
               <option value="garbage">Мусор</option>
               <option value="service">Сервисное обслуживание</option>
             </select>
-            <div className="min-w-[180px]">
+            <div className="min-w-0 w-full sm:w-auto sm:min-w-[140px] lg:min-w-[180px] max-w-full">
               <CounterpartyFilter
                 counterparts={tenants}
                 selected={selectedTenants}
@@ -723,7 +723,7 @@ export default function AccrualsPage() {
       )}
 
       <div className="bg-white shadow rounded-lg overflow-hidden">
-        <div className="overflow-x-auto -mx-4 md:mx-0">
+        <div className="overflow-x-auto no-scrollbar w-full">
           <div className="inline-block min-w-full align-middle">
             <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">

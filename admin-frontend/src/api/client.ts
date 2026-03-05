@@ -36,6 +36,10 @@ client.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Token ${token}`;
     }
+    // FormData: не задавать Content-Type — браузер сам поставит multipart/form-data с boundary
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
     return config;
   },
   (error) => {

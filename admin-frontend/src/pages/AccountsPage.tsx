@@ -289,7 +289,7 @@ export default function AccountsPage() {
       </div>
 
       <div className="bg-white rounded-card shadow-medium border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto -mx-4 md:mx-0">
+        <div className="overflow-x-auto no-scrollbar w-full">
           <div className="inline-block min-w-full align-middle">
             <table className="min-w-full divide-y divide-slate-200">
           <thead className="bg-slate-50">

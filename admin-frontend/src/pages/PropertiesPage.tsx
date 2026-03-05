@@ -27,9 +27,10 @@ interface Property {
 
 export default function PropertiesPage() {
   const { isCompact } = useDensity();
-  const { user, canWrite } = useUser();
+  const { user, canWrite, hasPermissionSection } = useUser();
   const compact = useCompactStyles();
   const canEdit = canWrite('properties');
+  const canDelete = hasPermissionSection('properties', 'delete') || !!user?.is_admin;
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -78,6 +79,7 @@ export default function PropertiesPage() {
       setLoading(false);
     } catch (error) {
       console.error('Error fetching properties:', error);
+      setProperties([]);
       setLoading(false);
     }
   };
@@ -251,7 +253,7 @@ export default function PropertiesPage() {
       {/* Таблица - Компактная с адаптивностью */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         {/* Desktop Table */}
-        <div className="hidden md:block overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto no-scrollbar w-full">
           <table className="min-w-full divide-y divide-gray-100">
           <thead className="bg-gray-50">
             <tr>
@@ -316,19 +318,23 @@ export default function PropertiesPage() {
                 </td>
                 <td className={`${compact.cellPadding} whitespace-nowrap text-right`}>
                   <div className="flex justify-end items-center gap-1">
-                    <button
-                      onClick={() => handleEdit(property)}
-                      className={`px-2 py-0.5 ${compact.smallText} font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors`}
-                      title="Редактировать"
-                    >
-                      Редактировать
-                    </button>
-                    <ActionsMenu
-                      items={[
-                        { label: 'Удалить', onClick: () => handleDelete(property), variant: 'danger' },
-                      ]}
-                      alwaysVisible={true}
-                    />
+                    {canEdit && (
+                      <button
+                        onClick={() => handleEdit(property)}
+                        className={`px-2 py-0.5 ${compact.smallText} font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors`}
+                        title="Редактировать"
+                      >
+                        Редактировать
+                      </button>
+                    )}
+                    {canDelete && (
+                      <ActionsMenu
+                        items={[
+                          { label: 'Удалить', onClick: () => handleDelete(property), variant: 'danger' },
+                        ]}
+                        alwaysVisible={true}
+                      />
+                    )}
                   </div>
                 </td>
               </tr>
@@ -368,12 +374,14 @@ export default function PropertiesPage() {
                       >
                         Редактировать
                       </button>
-                      <ActionsMenu
-                        items={[
-                          { label: 'Удалить', onClick: () => handleDelete(property), variant: 'danger' },
-                        ]}
-                        alwaysVisible={true}
-                      />
+                      {canDelete && (
+                        <ActionsMenu
+                          items={[
+                            { label: 'Удалить', onClick: () => handleDelete(property), variant: 'danger' },
+                          ]}
+                          alwaysVisible={true}
+                        />
+                      )}
                     </>
                   ) : (
                     <button

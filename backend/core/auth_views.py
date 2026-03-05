@@ -11,11 +11,14 @@ from django.contrib.auth import get_user_model, authenticate
 from django.db.models import Q
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-from .models import Tenant
+from .models import Tenant, PROTECTED_ADMIN_USERNAMES, ensure_protected_admin
+from .permissions import get_user_type, get_user_permissions
+from .audit import log_audit
 
 User = get_user_model()
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
     """Вход по логину и паролю, возвращает токен."""
     permission_classes = [AllowAny]
@@ -34,6 +37,7 @@ class LoginView(APIView):
                 {'error': 'Неверный логин или пароль'},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
+        ensure_protected_admin(user)
         if not user.is_active:
             return Response(
                 {'error': 'Учётная запись отключена'},
@@ -70,7 +74,8 @@ def me(request):
     Возвращает профиль пользователя, роль, разрешения и минимальный профиль
     """
     user = request.user
-    
+    ensure_protected_admin(user)
+
     # Определяем разрешения в зависимости от роли
     permissions_summary = {
         'can_read_tenants': user.role in ['admin', 'staff'],
@@ -107,6 +112,20 @@ def me(request):
             'email': user.counterparty.email,
             'phone': user.counterparty.phone,
         }
+
+    # Права по разделам из единой матрицы (core.permissions)
+    user_type = get_user_type(user)
+    permissions_sections = get_user_permissions(user_type)
+    # Ключ menu для фронта (full / owner / landlord / tenant / employee / master / minimal)
+    permissions_sections['menu'] = (
+        'full' if user_type == 'administrator' else
+        'owner' if user_type == 'owner' else
+        'landlord' if user_type == 'landlord' else
+        'tenant' if user_type == 'tenant' else
+        'employee' if user_type == 'employee' else
+        'master' if user_type == 'master' else
+        'minimal'
+    )
     
     response_data = {
         'id': user.id,
@@ -121,12 +140,101 @@ def me(request):
         'counterparty_id': user.counterparty_id if user.counterparty else None,
         'preferences': user.preferences or {},
         'permissions': permissions_summary,
+        'permissions_sections': permissions_sections,
         'is_admin': user.role == 'admin',
         'is_staff': user.role in ['admin', 'staff'],
         'is_client': user.role in ['tenant', 'landlord', 'investor'],
     }
     
     return Response(response_data, status=status.HTTP_200_OK)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def profile_update(request):
+    """
+    Обновление профиля текущего пользователя: username, email, first_name, last_name, phone.
+    После входа через WhatsApp можно задать логин/пароль и входить по ним.
+    """
+    user = request.user
+    data = request.data
+    if not data:
+        return Response({'error': 'Нет данных'}, status=status.HTTP_400_BAD_REQUEST)
+    old_data = {
+        'username': user.username,
+        'email': user.email or '',
+        'phone': user.phone or '',
+        'first_name': user.first_name or '',
+        'last_name': user.last_name or '',
+    }
+    if 'username' in data:
+        username = (data.get('username') or '').strip()
+        if not username:
+            return Response({'error': 'Логин не может быть пустым'}, status=status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(username=username).exclude(pk=user.pk).exists():
+            return Response({'error': 'Такой логин уже занят'}, status=status.HTTP_400_BAD_REQUEST)
+        user.username = username
+
+    for field in ('email', 'first_name', 'last_name', 'phone'):
+        if field in data:
+            setattr(user, field, data.get(field) or '')
+
+    user.save()
+    new_data = {
+        'username': user.username,
+        'email': user.email or '',
+        'phone': user.phone or '',
+        'first_name': user.first_name or '',
+        'last_name': user.last_name or '',
+    }
+    log_audit(
+        user=user,
+        action='profile_updated',
+        target_model='profile',
+        target_id=user.id,
+        target_repr=user.username,
+        old_data=old_data,
+        new_data=new_data,
+    )
+    return Response({
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'first_name': user.first_name or '',
+        'last_name': user.last_name or '',
+        'phone': user.phone or '',
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    """Смена пароля: current_password, new_password. Если пароль не задан (вход через WhatsApp) — текущий можно не вводить."""
+    user = request.user
+    current = request.data.get('current_password', '')
+    new_pass = request.data.get('new_password', '')
+    if not new_pass:
+        return Response({'error': 'Введите новый пароль'}, status=status.HTTP_400_BAD_REQUEST)
+    if len(new_pass) < 6:
+        return Response({'error': 'Новый пароль не менее 6 символов'}, status=status.HTTP_400_BAD_REQUEST)
+    # Если у пользователя уже есть пароль — требуем текущий
+    if user.has_usable_password():
+        if not current:
+            return Response({'error': 'Введите текущий пароль'}, status=status.HTTP_400_BAD_REQUEST)
+        if not user.check_password(current):
+            return Response({'error': 'Неверный текущий пароль'}, status=status.HTTP_400_BAD_REQUEST)
+    # Если пароль не задан (вход через WhatsApp) — текущий не проверяем
+    user.set_password(new_pass)
+    user.save()
+    log_audit(
+        user=user,
+        action='password_changed',
+        target_model='password',
+        target_id=str(user.id),
+        target_repr=user.username,
+        new_data={},
+    )
+    return Response({'success': True}, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])

@@ -5,6 +5,39 @@ from properties.models import Property
 from core.models import Tenant
 
 
+class ContractFile(models.Model):
+    """Файл к договору: сам договор или дополнительное соглашение"""
+    FILE_TYPE_CHOICES = [
+        ('contract', 'Договор'),
+        ('supplement', 'Дополнительное соглашение'),
+        ('other', 'Прочее'),
+    ]
+    contract = models.ForeignKey(
+        'Contract',
+        on_delete=models.CASCADE,
+        related_name='files',
+        verbose_name='Договор',
+    )
+    file_type = models.CharField(
+        max_length=20,
+        choices=FILE_TYPE_CHOICES,
+        default='contract',
+        verbose_name='Тип файла',
+    )
+    file = models.FileField(upload_to='contracts/%Y/%m/', verbose_name='Файл')
+    title = models.CharField(max_length=255, blank=True, verbose_name='Название')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'contract_files'
+        verbose_name = 'Файл договора'
+        verbose_name_plural = 'Файлы договоров'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.get_file_type_display()}: {self.title or self.file.name}"
+
+
 class Contract(models.Model):
     """Договор аренды"""
     STATUS_CHOICES = [
@@ -27,7 +60,7 @@ class Contract(models.Model):
         ('best', 'Лучший курс'),
     ]
     
-    # Автогенерация номера: AMT-YYYY-XXXXXX
+    # Автогенерация номера: AMT-YYYY-DDMM-XXX (год, дата день+месяц, порядковый номер за день)
     number = models.CharField(max_length=50, unique=True, verbose_name='Номер договора')
     signed_at = models.DateField(verbose_name='Дата подписания')
     property = models.ForeignKey(Property, on_delete=models.PROTECT, related_name='contracts', verbose_name='Объект')

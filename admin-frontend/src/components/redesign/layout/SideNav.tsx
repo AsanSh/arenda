@@ -1,15 +1,16 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LucideIcon } from 'lucide-react';
 import { useUserMenu } from '../../../hooks/useUserMenu';
+
+interface NavItemShape {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
 
 interface NavGroup {
   label?: string;
-  items: Array<{
-    name: string;
-    href: string;
-    icon: LucideIcon;
-  }>;
+  items: NavItemShape[];
 }
 
 export function SideNav() {
@@ -90,7 +91,7 @@ function NavItem({
   item,
   isActive,
 }: {
-  item: { name: string; href: string; icon: LucideIcon };
+  item: NavItemShape;
   isActive: boolean;
 }) {
   const Icon = item.icon;

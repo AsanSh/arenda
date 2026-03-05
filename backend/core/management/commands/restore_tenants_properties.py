@@ -1,8 +1,14 @@
 """
-Восстанавливает контрагентов и недвижимость из фикстуры core/fixtures/tenants_and_properties.json.
+Восстанавливает контрагентов, недвижимость и сотрудников из фикстуры core/fixtures/tenants_and_properties.json.
+
 Использование:
   python manage.py restore_tenants_properties           # загрузить в пустую БД
   python manage.py restore_tenants_properties --clear   # удалить всех контрагентов и объекты недвижимости, затем загрузить (осторожно: затронет договоры и др.)
+
+Через Docker (из корня репозитория):
+  cd infra && docker compose run --rm backend python manage.py restore_tenants_properties
+
+Или скрипт: ./scripts/restore_tenants_properties.sh
 """
 from django.core.management.base import BaseCommand
 from django.core.management import call_command

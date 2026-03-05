@@ -1,19 +1,20 @@
-from rest_framework import viewsets, filters
+from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
-from .models import Tenant, ExchangeRate, Request
-from .serializers import TenantSerializer, ExchangeRateSerializer, RequestSerializer, RequestListSerializer
+from .models import Tenant, ExchangeRate, Request, EMPLOYEE_TYPES, AuditLog
+from .serializers import TenantSerializer, ExchangeRateSerializer, RequestSerializer, RequestListSerializer, AuditLogSerializer
 from .services import ExchangeRateService
 from .mixins import DataScopingMixin
 from .permissions import ReadOnlyForClients, CanReadResource, CanWriteResource
+from .audit import log_audit
 
 
 class TenantViewSet(DataScopingMixin, viewsets.ModelViewSet):
-    """ViewSet для управления контрагентами с RBAC"""
-    queryset = Tenant.objects.all()
+    """ViewSet для управления контрагентами с RBAC. Сотрудники (admin, staff, master, accounting, sales) — в Настройки → Сотрудники."""
+    queryset = Tenant.objects.exclude(type__in=EMPLOYEE_TYPES)
     serializer_class = TenantSerializer
     permission_classes = [IsAuthenticated, CanReadResource, CanWriteResource]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -107,6 +108,74 @@ class TenantViewSet(DataScopingMixin, viewsets.ModelViewSet):
             logger.info(f"Phone search: input={phone}, normalized={normalized_phone}, variants={list(search_phones)}, normalized_variants={list(normalized_variants)}, found={queryset.count()}")
         
         return queryset
+
+
+class EmployeesViewSet(viewsets.ModelViewSet):
+    """
+    Сотрудники (Настройки → Сотрудники).
+    Только контрагенты с типом admin, staff, master, accounting, sales.
+    Только администратор может создавать/редактировать/удалять.
+    """
+    serializer_class = TenantSerializer
+    permission_classes = [IsAuthenticated, CanReadResource, CanWriteResource]
+    filterset_fields = ['type']
+    search_fields = ['name', 'email', 'phone', 'contact_person']
+    ordering_fields = ['name', 'created_at']
+    ordering = ['name']
+
+    def get_queryset(self):
+        return Tenant.objects.filter(type__in=EMPLOYEE_TYPES)
+
+    def _employee_data(self, instance):
+        return {
+            'name': instance.name,
+            'type': instance.type,
+            'contact_person': instance.contact_person or '',
+            'email': instance.email or '',
+            'phone': instance.phone or '',
+            'inn': instance.inn or '',
+            'address': instance.address or '',
+            'comment': instance.comment or '',
+        }
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_audit(
+            user=self.request.user,
+            action='employee_created',
+            target_model='employee',
+            target_id=instance.id,
+            target_repr=instance.name,
+            new_data=self._employee_data(instance),
+        )
+
+    def perform_update(self, serializer):
+        old_data = self._employee_data(serializer.instance)
+        instance = serializer.save()
+        log_audit(
+            user=self.request.user,
+            action='employee_updated',
+            target_model='employee',
+            target_id=instance.id,
+            target_repr=instance.name,
+            old_data=old_data,
+            new_data=self._employee_data(instance),
+        )
+
+    def perform_destroy(self, instance):
+        if instance.type == 'admin':
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Нельзя удалить администратора системы.")
+        old_data = self._employee_data(instance)
+        log_audit(
+            user=self.request.user,
+            action='employee_deleted',
+            target_model='employee',
+            target_id=instance.id,
+            target_repr=instance.name,
+            old_data=old_data,
+        )
+        instance.delete()
 
 
 class ExchangeRateViewSet(viewsets.ReadOnlyModelViewSet):
@@ -227,3 +296,76 @@ class RequestViewSet(DataScopingMixin, viewsets.ModelViewSet):
         
         serializer = self.get_serializer(request_obj)
         return Response(serializer.data)
+
+
+class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Логи изменений в настройках (профиль, пароль, сотрудники).
+    Только список и восстановление; создание/редактирование через другие эндпоинты.
+    """
+    serializer_class = AuditLogSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['action', 'target_model']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        return AuditLog.objects.all().select_related('user')
+
+    @action(detail=True, methods=['post'])
+    def restore(self, request, pk=None):
+        """Восстановить состояние по записи лога (только profile_updated и employee_updated)."""
+        log_entry = self.get_object()
+        if log_entry.action not in ('profile_updated', 'employee_updated'):
+            return Response(
+                {'error': 'Восстановление возможно только для изменений профиля и сотрудников.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not log_entry.old_data:
+            return Response(
+                {'error': 'Нет данных для восстановления.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        req_user = request.user
+        if log_entry.target_model == 'profile':
+            if str(log_entry.target_id) != str(req_user.id):
+                return Response({'error': 'Можно восстановить только свой профиль.'}, status=status.HTTP_403_FORBIDDEN)
+            for field in ('username', 'email', 'phone', 'first_name', 'last_name'):
+                if field in log_entry.old_data:
+                    setattr(req_user, field, log_entry.old_data[field] or '')
+            req_user.save()
+            log_audit(
+                user=req_user,
+                action='profile_updated',
+                target_model='profile',
+                target_id=req_user.id,
+                target_repr=req_user.username,
+                old_data=dict(request.data) if request.data else {},
+                new_data=log_entry.old_data,
+                reason='Восстановление из лога',
+            )
+            return Response({'success': True, 'message': 'Профиль восстановлен.'})
+        if log_entry.target_model == 'employee':
+            if req_user.role not in ('admin', 'staff'):
+                return Response({'error': 'Доступ запрещен.'}, status=status.HTTP_403_FORBIDDEN)
+            try:
+                emp = Tenant.objects.get(pk=log_entry.target_id, type__in=EMPLOYEE_TYPES)
+            except Tenant.DoesNotExist:
+                return Response({'error': 'Сотрудник не найден.'}, status=status.HTTP_404_NOT_FOUND)
+            for key in ('name', 'type', 'contact_person', 'email', 'phone', 'inn', 'address', 'comment'):
+                if key in log_entry.old_data:
+                    setattr(emp, key, log_entry.old_data[key] or '')
+            emp.save()
+            log_audit(
+                user=req_user,
+                action='employee_updated',
+                target_model='employee',
+                target_id=emp.id,
+                target_repr=emp.name,
+                old_data={'name': emp.name, 'type': emp.type, 'contact_person': emp.contact_person or '', 'email': emp.email or '', 'phone': emp.phone or '', 'inn': emp.inn or '', 'address': emp.address or '', 'comment': emp.comment or ''},
+                new_data=log_entry.old_data,
+                reason='Восстановление из лога',
+            )
+            return Response({'success': True, 'message': 'Данные сотрудника восстановлены.'})
+        return Response({'error': 'Неизвестный тип объекта.'}, status=status.HTTP_400_BAD_REQUEST)

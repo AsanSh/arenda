@@ -3,7 +3,7 @@ import { LucideIcon, TrendingUp, TrendingDown } from 'lucide-react';
 
 interface KPIStatCardProps {
   label: string;
-  value: string;
+  value: React.ReactNode;
   change?: {
     value: number;
     isPositive: boolean;

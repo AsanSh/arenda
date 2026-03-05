@@ -168,8 +168,8 @@ export default function PaymentsPage() {
       <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-200 mb-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-gray-700 mr-1">Показать:</span>
-          <div className="ml-auto flex items-center gap-2">
-            <div className="min-w-[180px]">
+          <div className="ml-auto flex flex-wrap items-center gap-2 min-w-0 flex-1 lg:flex-initial">
+            <div className="min-w-0 w-full sm:w-auto sm:min-w-[140px] lg:min-w-[180px] max-w-full">
               <CounterpartyFilter
                 counterparts={tenants}
                 selected={selectedTenants}
@@ -222,7 +222,7 @@ export default function PaymentsPage() {
       </div>
 
       <div className="bg-white shadow rounded-lg overflow-hidden">
-        <div className="overflow-x-auto -mx-4 md:mx-0">
+        <div className="overflow-x-auto no-scrollbar w-full">
           <div className="inline-block min-w-full align-middle">
             <table className="min-w-full divide-y divide-gray-100">
           <thead className="bg-gray-50">

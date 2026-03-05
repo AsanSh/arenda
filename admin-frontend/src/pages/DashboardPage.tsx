@@ -2,14 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import { formatCurrency, formatAmount } from '../utils/currency';
-import { useCompactStyles } from '../hooks/useCompactStyles';
-import { 
-  ExclamationTriangleIcon, 
-  ClockIcon, 
+import {
+  ExclamationTriangleIcon,
+  ClockIcon,
   ArrowTrendingUpIcon,
   ArrowRightIcon,
   ChevronUpIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
 } from '@heroicons/react/24/outline';
 
 interface DashboardStats {
@@ -84,13 +83,13 @@ const PaymentChart: React.FC<{ data: number[] }> = ({ data }) => {
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const compact = useCompactStyles();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [overdue, setOverdue] = useState<Accrual[]>([]);
   const [recentPayments, setRecentPayments] = useState<Payment[]>([]);
   const [upcoming, setUpcoming] = useState<Accrual[]>([]);
   const [loading, setLoading] = useState(true);
   const [paymentHistory, setPaymentHistory] = useState<number[]>([]);
+  const [incomePeriod, setIncomePeriod] = useState<'7d' | '30d' | '90d' | 'YTD'>('30d');
 
   useEffect(() => {
     fetchDashboardData();
@@ -179,150 +178,114 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="w-full space-y-4 md:space-y-6">
+    <div className="w-full max-w-full min-h-screen bg-[#F5F7FA] p-4 md:p-6 space-y-6 overflow-x-hidden">
       {/* Header */}
-      <div className="mb-4 md:mb-8">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <div>
+        <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">
           Дашборд
         </h1>
-        <p className="mt-1 text-xs md:text-sm text-gray-500">Обзор финансовых показателей</p>
+        <p className="mt-0.5 text-sm text-slate-500">Обзор финансовых показателей</p>
       </div>
 
-      {/* Top KPI Metrics Row - включая депозиты */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 md:gap-3">
-        <div 
-          onClick={() => navigate('/accruals')}
-          className={`bg-white ${compact.kpiCardPadding} ${compact.kpiCardHeight} rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 cursor-pointer hover:border-indigo-300 flex flex-col justify-between`}
-        >
-          <div className="flex items-start justify-between">
-            <h3 className={`${compact.smallText} font-medium text-gray-500 uppercase tracking-wide`}>Итого начислено</h3>
-            {trends && (
-              <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full ${compact.smallText} font-semibold ${
-                trends.total.isPositive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-              }`}>
-                {trends.total.isPositive ? (
-                  <ChevronUpIcon className="h-2.5 w-2.5" />
-                ) : (
-                  <ChevronDownIcon className="h-2.5 w-2.5" />
-                )}
-                {Math.abs(trends.total.value)}%
-              </div>
-            )}
-          </div>
-          <p className={`${compact.kpiNumber} font-semibold text-gray-900 leading-tight`}>
-            {formatCurrency(stats.accruals.total, 'KGS')}
-          </p>
-        </div>
-
-        <div 
-          onClick={() => navigate('/payments')}
-          className={`bg-white ${compact.kpiCardPadding} ${compact.kpiCardHeight} rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 cursor-pointer hover:border-green-300 flex flex-col justify-between`}
-        >
-          <div className="flex items-start justify-between">
-            <h3 className={`${compact.smallText} font-medium text-gray-500 uppercase tracking-wide`}>Итого оплачено</h3>
-            {trends && (
-              <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full ${compact.smallText} font-semibold ${
-                trends.paid.isPositive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-              }`}>
-                {trends.paid.isPositive ? (
-                  <ChevronUpIcon className="h-2.5 w-2.5" />
-                ) : (
-                  <ChevronDownIcon className="h-2.5 w-2.5" />
-                )}
-                {Math.abs(trends.paid.value)}%
-              </div>
-            )}
-          </div>
-          <p className={`${compact.kpiNumber} font-semibold text-green-600 leading-tight`}>
-            {formatCurrency(stats.accruals.paid, 'KGS')}
-          </p>
-        </div>
-
-        <div 
+      {/* Top row: KPI cards — финтех: крупные числа, мало шума, 20–24px padding, 16–24px gap */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        {/* 1. Остаток к оплате — главный KPI */}
+        <div
           onClick={() => navigate('/accruals?status=unpaid')}
-          className={`bg-white ${compact.kpiCardPadding} ${compact.kpiCardHeight} rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 cursor-pointer hover:border-blue-300 flex flex-col justify-between`}
+          className="bg-white rounded-2xl shadow-sm hover:shadow transition-all p-5 md:p-6 cursor-pointer border border-slate-100/80 flex flex-col justify-between min-h-[120px]"
         >
-          <div className="flex items-start justify-between">
-            <h3 className={`${compact.smallText} font-medium text-gray-500 uppercase tracking-wide`}>Остаток к оплате</h3>
-            {trends && (
-              <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full ${compact.smallText} font-semibold ${
-                trends.balance.isPositive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-              }`}>
-                {trends.balance.isPositive ? (
-                  <ChevronUpIcon className="h-2.5 w-2.5" />
-                ) : (
-                  <ChevronDownIcon className="h-2.5 w-2.5" />
-                )}
-                {Math.abs(trends.balance.value)}%
-              </div>
-            )}
-          </div>
-          <p className={`${compact.kpiNumber} font-semibold text-blue-600 leading-tight`}>
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Остаток к оплате</p>
+          <p className="text-3xl md:text-4xl font-bold text-slate-900 mt-1 tracking-tight">
             {formatCurrency(stats.accruals.balance, 'KGS')}
           </p>
+          {trends && (
+            <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${trends.balance.isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
+              {trends.balance.isPositive ? <ChevronUpIcon className="h-3.5 w-3.5" /> : <ChevronDownIcon className="h-3.5 w-3.5" />}
+              {Math.abs(trends.balance.value)}% MoM
+            </div>
+          )}
         </div>
 
-        <div 
+        {/* 2. Просрочено — с бейджем количества */}
+        <div
           onClick={() => navigate('/accruals?status=overdue')}
-          className={`bg-white ${compact.kpiCardPadding} ${compact.kpiCardHeight} rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 cursor-pointer hover:border-red-300 flex flex-col justify-between`}
+          className="bg-white rounded-2xl shadow-sm hover:shadow transition-all p-5 md:p-6 cursor-pointer border border-slate-100/80 flex flex-col justify-between min-h-[120px]"
         >
-          <div className="flex items-start justify-between">
-            <h3 className={`${compact.smallText} font-medium text-gray-500 uppercase tracking-wide`}>Просрочено</h3>
-            {trends && (
-              <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full ${compact.smallText} font-semibold ${
-                trends.overdue.isPositive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-              }`}>
-                {trends.overdue.isPositive ? (
-                  <ChevronUpIcon className="h-2.5 w-2.5" />
-                ) : (
-                  <ChevronDownIcon className="h-2.5 w-2.5" />
-                )}
-                {Math.abs(trends.overdue.value)}%
-              </div>
-            )}
-          </div>
-          <div>
-            <p className={`${compact.kpiNumber} font-semibold text-red-600 leading-tight`}>
-              {formatCurrency(stats.accruals.overdue_amount, 'KGS')}
-            </p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Просрочено</p>
             {stats.accruals.overdue_count > 0 && (
-              <p className={`${compact.smallText} text-gray-500 mt-0.5`}>
-                {stats.accruals.overdue_count} начислений
-              </p>
+              <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-medium">
+                {stats.accruals.overdue_count} начисл.
+              </span>
             )}
           </div>
+          <p className="text-3xl md:text-4xl font-bold text-red-600 mt-1 tracking-tight">
+            {formatCurrency(stats.accruals.overdue_amount, 'KGS')}
+          </p>
+          {trends && (
+            <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${trends.overdue.isPositive ? 'text-red-600' : 'text-emerald-600'}`}>
+              {trends.overdue.isPositive ? <ChevronUpIcon className="h-3.5 w-3.5" /> : <ChevronDownIcon className="h-3.5 w-3.5" />}
+              {Math.abs(trends.overdue.value)}% MoM
+            </div>
+          )}
         </div>
 
-        {/* Депозит KPI - в первой строке */}
-        {stats.deposits && (
-          <div 
-            onClick={() => navigate('/deposits')}
-            className={`bg-white ${compact.kpiCardPadding} ${compact.kpiCardHeight} rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 cursor-pointer hover:border-purple-300 flex flex-col justify-between`}
-          >
-            <div className="flex items-start justify-between">
-              <h3 className={`${compact.smallText} font-medium text-gray-500 uppercase tracking-wide`}>Депозиты</h3>
+        {/* 3. Итого начислено */}
+        <div
+          onClick={() => navigate('/accruals')}
+          className="bg-white rounded-2xl shadow-sm hover:shadow transition-all p-5 md:p-6 cursor-pointer border border-slate-100/80 flex flex-col justify-between min-h-[120px]"
+        >
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Итого начислено</p>
+          <p className="text-3xl md:text-4xl font-bold text-slate-900 mt-1 tracking-tight">
+            {formatCurrency(stats.accruals.total, 'KGS')}
+          </p>
+          {trends && (
+            <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${trends.total.isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
+              {trends.total.isPositive ? <ChevronUpIcon className="h-3.5 w-3.5" /> : <ChevronDownIcon className="h-3.5 w-3.5" />}
+              {Math.abs(trends.total.value)}% MoM
             </div>
-            <div>
-              <p className={`${compact.kpiNumber} font-semibold text-purple-600 leading-tight`}>
-                {formatCurrency(stats.deposits.total, 'KGS')}
-              </p>
-              <p className={`${compact.smallText} text-gray-500 mt-0.5`}>
-                Остаток: {formatCurrency(stats.deposits.balance, 'KGS')} ({stats.deposits.count})
-              </p>
+          )}
+        </div>
+
+        {/* 4. Итого оплачено */}
+        <div
+          onClick={() => navigate('/payments')}
+          className="bg-white rounded-2xl shadow-sm hover:shadow transition-all p-5 md:p-6 cursor-pointer border border-slate-100/80 flex flex-col justify-between min-h-[120px]"
+        >
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Итого оплачено</p>
+          <p className="text-3xl md:text-4xl font-bold text-emerald-600 mt-1 tracking-tight">
+            {formatCurrency(stats.accruals.paid, 'KGS')}
+          </p>
+          {trends && (
+            <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${trends.paid.isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
+              {trends.paid.isPositive ? <ChevronUpIcon className="h-3.5 w-3.5" /> : <ChevronDownIcon className="h-3.5 w-3.5" />}
+              {Math.abs(trends.paid.value)}% MoM
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Secondary Metrics Row - Компактные */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-        <div 
+      {/* Депозиты — компактная строка (опционально) */}
+      {stats.deposits && (
+        <div
+          onClick={() => navigate('/deposits')}
+          className="bg-white rounded-2xl shadow-sm p-4 flex items-center justify-between cursor-pointer hover:shadow border border-slate-100/80"
+        >
+          <span className="text-sm font-medium text-slate-500">Депозиты</span>
+          <span className="text-xl font-bold text-slate-900">{formatCurrency(stats.deposits.total, 'KGS')}</span>
+          <span className="text-xs text-slate-500">Остаток: {formatCurrency(stats.deposits.balance, 'KGS')} · {stats.deposits.count}</span>
+        </div>
+      )}
+
+      {/* Второй ряд: объекты, контрагенты, договоры, счета — компактно */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div
           onClick={() => navigate('/properties')}
-          className={`bg-white ${compact.cardPaddingSmall} h-16 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 cursor-pointer hover:border-blue-300 flex items-center justify-between`}
+          className="bg-white rounded-2xl shadow-sm border border-slate-100/80 p-4 h-20 flex items-center justify-between cursor-pointer hover:shadow transition-all"
         >
           <div>
-            <h3 className={`${compact.smallText} font-medium text-gray-500 mb-0.5`}>Недвижимость</h3>
-            <p className={`${compact.kpiNumber} font-bold text-gray-900`}>{stats.general.properties}</p>
+            <h3 className="text-xs font-medium text-slate-500 mb-0.5">Недвижимость</h3>
+            <p className="text-lg font-bold text-slate-900">{stats.general.properties}</p>
           </div>
           <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
             <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -330,13 +293,13 @@ export default function DashboardPage() {
             </svg>
           </div>
         </div>
-        <div 
+        <div
           onClick={() => navigate('/tenants')}
-          className={`bg-white ${compact.cardPaddingSmall} h-16 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 cursor-pointer hover:border-purple-300 flex items-center justify-between`}
+          className="bg-white rounded-2xl shadow-sm border border-slate-100/80 p-4 h-20 flex items-center justify-between cursor-pointer hover:shadow transition-all"
         >
           <div>
-            <h3 className={`${compact.smallText} font-medium text-gray-500 mb-0.5`}>Контрагенты</h3>
-            <p className={`${compact.kpiNumber} font-bold text-gray-900`}>{stats.general.tenants}</p>
+            <h3 className="text-xs font-medium text-slate-500 mb-0.5">Контрагенты</h3>
+            <p className="text-lg font-bold text-slate-900">{stats.general.tenants}</p>
           </div>
           <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
             <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -344,13 +307,13 @@ export default function DashboardPage() {
             </svg>
           </div>
         </div>
-        <div 
+        <div
           onClick={() => navigate('/contracts?status=active')}
-          className={`bg-white ${compact.cardPaddingSmall} h-16 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 cursor-pointer hover:border-green-300 flex items-center justify-between`}
+          className="bg-white rounded-2xl shadow-sm border border-slate-100/80 p-4 h-20 flex items-center justify-between cursor-pointer hover:shadow transition-all"
         >
           <div>
-            <h3 className={`${compact.smallText} font-medium text-gray-500 mb-0.5`}>Активные договоры</h3>
-            <p className={`${compact.kpiNumber} font-bold text-gray-900`}>{stats.general.contracts}</p>
+            <h3 className="text-xs font-medium text-slate-500 mb-0.5">Активные договоры</h3>
+            <p className="text-lg font-bold text-slate-900">{stats.general.contracts}</p>
           </div>
           <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center">
             <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -358,13 +321,13 @@ export default function DashboardPage() {
             </svg>
           </div>
         </div>
-        <div 
+        <div
           onClick={() => navigate('/accounts')}
-          className={`bg-white ${compact.cardPaddingSmall} h-16 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 cursor-pointer hover:border-indigo-300 flex items-center justify-between`}
+          className="bg-white rounded-2xl shadow-sm border border-slate-100/80 p-4 h-20 flex items-center justify-between cursor-pointer hover:shadow transition-all"
         >
           <div>
-            <h3 className={`${compact.smallText} font-medium text-gray-500 mb-0.5`}>Баланс счетов</h3>
-            <p className={`${compact.kpiNumber} font-bold text-purple-600`}>
+            <h3 className="text-xs font-medium text-slate-500 mb-0.5">Баланс счетов</h3>
+            <p className="text-lg font-bold text-slate-900">
               {formatCurrency(stats.general.account_balance, 'KGS')}
             </p>
           </div>
@@ -376,191 +339,157 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Payments Chart Section - Компактный */}
-      <div className={`bg-white ${compact.cardPadding} rounded-lg shadow-sm border border-gray-100`}>
+      {/* Поступления — финтех: период 7d/30d/90d/YTD, крупная сумма, бейдж */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100/80 p-5 md:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-2">
           <div>
-            <h2 className={`${compact.sectionHeader} text-gray-900 mb-0.5`}>Поступления за текущий месяц</h2>
-            <p className={`${compact.textSize} text-gray-500`}>Динамика за последние 30 дней</p>
+            <h2 className="text-sm font-semibold text-slate-900">Поступления</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Сумма за выбранный период</p>
           </div>
-          <Link 
-            to="/payments" 
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 ${compact.textSize} font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors`}
-          >
-            Все поступления
-            <ArrowRightIcon className={compact.iconSizeSmall} />
-          </Link>
+          <div className="flex gap-1 p-0.5 bg-slate-100 rounded-lg">
+            {(['7d', '30d', '90d', 'YTD'] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => setIncomePeriod(p)}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                  incomePeriod === p ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
         </div>
-        
-        {/* Chart - Компактный */}
-        <div className="mb-3">
+        <p className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
+          {formatCurrency(stats.payments.last_30_days_amount, 'KGS')}
+        </p>
+        <span className="inline-flex items-center mt-1 text-xs text-slate-500">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 mr-1.5" />
+          {stats.payments.this_month_count} платежей
+        </span>
+        <div className="mt-4 min-h-[80px]">
           <PaymentChart data={paymentHistory} />
         </div>
+        <Link to="/payments" className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
+          Все поступления <ArrowRightIcon className="h-3.5 w-3.5" />
+        </Link>
+      </div>
 
-        {/* Stats Grid - Компактный */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-gray-100">
-          <div>
-            <p className={`${compact.smallText} font-medium text-gray-500 uppercase tracking-wide mb-0.5`}>Количество платежей</p>
-            <p className={`${compact.kpiNumber} font-bold text-gray-900`}>{stats.payments.this_month_count}</p>
+      {/* Списки: Просрочено | К оплате — финтех: объект жирный, бейдж красный/оранжевый, сумма справа */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+        {/* Просрочено */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/80 overflow-hidden">
+          <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-900">Просрочено</h2>
+            <Link to="/accruals?status=overdue" className="text-xs font-medium text-indigo-600 hover:text-indigo-700">Все</Link>
           </div>
-          <div>
-            <p className={`${compact.smallText} font-medium text-gray-500 uppercase tracking-wide mb-0.5`}>Сумма за месяц</p>
-            <p className={`${compact.kpiNumber} font-bold text-green-600`}>
-              {formatCurrency(stats.payments.this_month_amount, 'KGS')}
-            </p>
+          <div className="p-4 space-y-3">
+            {overdue.length === 0 ? (
+              <p className="text-sm text-slate-500 text-center py-6">Нет просроченных начислений</p>
+            ) : (
+              overdue.map((accrual) => (
+                <div key={accrual.id} className="flex items-center justify-between gap-3 py-2 border-b border-slate-50 last:border-0">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-900 truncate">{accrual.property_address}</p>
+                    <p className="text-xs text-slate-500 truncate mt-0.5">{accrual.tenant_name}</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {accrual.overdue_days != null && accrual.overdue_days > 0 && (
+                      <span className="px-2 py-0.5 rounded-md bg-red-100 text-red-700 text-xs font-medium">
+                        Просрочено +{accrual.overdue_days} дн.
+                      </span>
+                    )}
+                    <span className="text-sm font-bold text-red-600 whitespace-nowrap">
+                      {formatAmount(accrual.balance)} {accrual.currency || 'с'}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
-          <div>
-            <p className={`${compact.smallText} font-medium text-gray-500 uppercase tracking-wide mb-0.5`}>За последние 30 дней</p>
-            <p className={`${compact.kpiNumber} font-semibold text-gray-700`}>
-              {formatCurrency(stats.payments.last_30_days_amount, 'KGS')}
-            </p>
+        </div>
+
+        {/* К оплате */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100/80 overflow-hidden">
+          <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-900">К оплате</h2>
+            <Link to="/accruals" className="text-xs font-medium text-indigo-600 hover:text-indigo-700">Все</Link>
+          </div>
+          <div className="p-4 space-y-3">
+            {upcoming.length === 0 ? (
+              <p className="text-sm text-slate-500 text-center py-6">Нет предстоящих платежей</p>
+            ) : (
+              upcoming.map((accrual) => {
+                const dueDate = new Date(accrual.due_date);
+                const daysLeft = Math.ceil((dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                return (
+                  <div key={accrual.id} className="flex items-center justify-between gap-3 py-2 border-b border-slate-50 last:border-0">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-slate-900 truncate">{accrual.property_address}</p>
+                      <p className="text-xs text-slate-500 truncate mt-0.5">{accrual.tenant_name}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {daysLeft <= 7 && daysLeft >= 0 && (
+                        <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 text-xs font-medium">
+                          Через {daysLeft} дн.
+                        </span>
+                      )}
+                      <span className="text-sm font-bold text-slate-900 whitespace-nowrap">
+                        {formatAmount(accrual.balance)} {accrual.currency || 'с'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>
 
-      {/* Bottom Lists Row - Компактные */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        {/* Просроченные начисления */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-          <div className={`${compact.cardPaddingSmall} border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-red-50 to-transparent`}>
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-red-100 flex items-center justify-center">
-                <ExclamationTriangleIcon className={`${compact.iconSize} text-red-600`} />
-              </div>
-              <h2 className={`${compact.sectionHeader} text-gray-900`}>Просроченные</h2>
-            </div>
-            <Link 
-              to="/accruals?status=overdue" 
-              className={`inline-flex items-center gap-1 px-2 py-1 ${compact.smallText} font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors`}
-            >
-              Все
-              <ArrowRightIcon className={compact.iconSizeSmall} />
-            </Link>
-          </div>
-          <div className={compact.cardPaddingSmall}>
-            {overdue.length === 0 ? (
-              <p className={`${compact.textSize} text-gray-500 text-center py-4`}>Нет просроченных начислений</p>
-            ) : (
-              <div className="space-y-1.5">
-                {overdue.map((accrual) => (
-                  <div 
-                    key={accrual.id} 
-                    className={`${compact.cardPaddingSmall} rounded-lg border border-red-100 bg-red-50/50 hover:bg-red-50 transition-colors cursor-pointer`}
-                  >
-                    <div className="flex justify-between items-start mb-1">
-                      <div className="flex-1 min-w-0">
-                        <p className={`${compact.textSize} font-medium text-gray-900 truncate`}>{accrual.property_address}</p>
-                        <p className={`${compact.smallText} text-gray-600 truncate mt-0.5`}>{accrual.tenant_name}</p>
-                      </div>
-                      <span className={`${compact.textSize} font-bold text-red-600 whitespace-nowrap ml-2`}>
-                        {formatAmount(accrual.balance)} {accrual.currency || 'с'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className={`${compact.smallText} text-gray-500`}>Срок: {new Date(accrual.due_date).toLocaleDateString('ru-RU')}</span>
-                      {accrual.overdue_days && accrual.overdue_days > 0 && (
-                        <span className={`px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 font-medium ${compact.smallText}`}>
-                          {accrual.overdue_days} дн.
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+      {/* Последние платежи — таблица (финтех) */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100/80 overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-900">Последние платежи</h2>
+          <Link to="/payments" className="text-xs font-medium text-indigo-600 hover:text-indigo-700">Все</Link>
         </div>
-
-        {/* Предстоящие платежи - Компактные */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-          <div className={`${compact.cardPaddingSmall} border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-orange-50 to-transparent`}>
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center">
-                <ClockIcon className={`${compact.iconSize} text-orange-600`} />
-              </div>
-              <h2 className={`${compact.sectionHeader} text-gray-900`}>К оплате</h2>
-            </div>
-            <Link 
-              to="/accruals" 
-              className={`inline-flex items-center gap-1 px-2 py-1 ${compact.smallText} font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors`}
-            >
-              Все
-              <ArrowRightIcon className={compact.iconSizeSmall} />
-            </Link>
-          </div>
-          <div className={compact.cardPaddingSmall}>
-            {upcoming.length === 0 ? (
-              <p className={`${compact.textSize} text-gray-500 text-center py-4`}>Нет предстоящих платежей</p>
-            ) : (
-              <div className="space-y-1.5">
-                {upcoming.map((accrual) => (
-                  <div 
-                    key={accrual.id} 
-                    className={`${compact.cardPaddingSmall} rounded-lg border border-orange-100 bg-orange-50/50 hover:bg-orange-50 transition-colors cursor-pointer`}
-                  >
-                    <div className="flex justify-between items-start mb-1">
-                      <div className="flex-1 min-w-0">
-                        <p className={`${compact.textSize} font-medium text-gray-900 truncate`}>{accrual.property_address}</p>
-                        <p className={`${compact.smallText} text-gray-600 truncate mt-0.5`}>{accrual.tenant_name}</p>
-                      </div>
-                      <span className={`${compact.textSize} font-bold text-blue-600 whitespace-nowrap ml-2`}>
-                        {formatAmount(accrual.balance)} {accrual.currency || 'с'}
-                      </span>
-                    </div>
-                    <div className={`${compact.smallText} text-gray-500`}>
-                      Срок: {new Date(accrual.due_date).toLocaleDateString('ru-RU')}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Последние платежи - Компактные */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-          <div className={`${compact.cardPaddingSmall} border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-green-50 to-transparent`}>
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center">
-                <ArrowTrendingUpIcon className={`${compact.iconSize} text-green-600`} />
-              </div>
-              <h2 className={`${compact.sectionHeader} text-gray-900`}>Последние платежи</h2>
-            </div>
-            <Link 
-              to="/payments" 
-              className={`inline-flex items-center gap-1 px-2 py-1 ${compact.smallText} font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors`}
-            >
-              Все
-              <ArrowRightIcon className={compact.iconSizeSmall} />
-            </Link>
-          </div>
-          <div className={compact.cardPaddingSmall}>
-            {recentPayments.length === 0 ? (
-              <p className={`${compact.textSize} text-gray-500 text-center py-4`}>Нет платежей</p>
-            ) : (
-              <div className="space-y-1.5">
+        <div className="overflow-x-auto no-scrollbar w-full">
+          {recentPayments.length === 0 ? (
+            <p className="text-sm text-slate-500 text-center py-8">Нет платежей</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">
+                  <th className="px-5 py-3">ID / Договор</th>
+                  <th className="px-5 py-3">Контрагент</th>
+                  <th className="px-5 py-3">Дата</th>
+                  <th className="px-5 py-3 text-right">Сумма</th>
+                  <th className="px-5 py-3">Статус</th>
+                </tr>
+              </thead>
+              <tbody>
                 {recentPayments.map((payment) => (
-                  <div 
-                    key={payment.id} 
-                    className={`${compact.cardPaddingSmall} rounded-lg border border-green-100 bg-green-50/50 hover:bg-green-50 transition-colors cursor-pointer`}
-                  >
-                    <div className="flex justify-between items-start mb-1">
-                      <div className="flex-1 min-w-0">
-                        <p className={`${compact.textSize} font-medium text-gray-900 truncate`}>{payment.contract_number}</p>
-                        <p className={`${compact.smallText} text-gray-600 truncate mt-0.5`}>{payment.tenant_name}</p>
-                      </div>
-                      <span className={`${compact.textSize} font-bold text-green-600 whitespace-nowrap ml-2`}>
-                        {formatAmount(payment.amount)} {payment.currency || 'с'}
+                  <tr key={payment.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                    <td className="px-5 py-3">
+                      <Link to={`/payments`} className="font-medium text-indigo-600 hover:text-indigo-700">
+                        #{payment.id}
+                      </Link>
+                      <span className="text-slate-500 ml-1">· {payment.contract_number}</span>
+                    </td>
+                    <td className="px-5 py-3 text-slate-700">{payment.tenant_name}</td>
+                    <td className="px-5 py-3 text-slate-600">{new Date(payment.payment_date).toLocaleDateString('ru-RU')}</td>
+                    <td className="px-5 py-3 text-right font-semibold text-slate-900">
+                      {formatAmount(payment.amount)} {payment.currency || 'с'}
+                    </td>
+                    <td className="px-5 py-3">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">
+                        Оплачен
                       </span>
-                    </div>
-                    <div className={`${compact.smallText} text-gray-500`}>
-                      {new Date(payment.payment_date).toLocaleDateString('ru-RU')}
-                    </div>
-                  </div>
+                    </td>
+                  </tr>
                 ))}
-              </div>
-            )}
-          </div>
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>
