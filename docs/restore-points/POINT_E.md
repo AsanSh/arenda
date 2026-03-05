@@ -1,119 +1,76 @@
-# POINT E — Состояние после настройки сервера и логина
+# POINT E — PDF договоры, удаление недвижимости, media в production
 
-**Дата создания:** 2 марта 2025  
-**Статус:** ✅ Работоспособная версия, логин протестирован  
+**Дата создания:** 5 марта 2026  
+**Статус:** ✅ Работоспособная версия  
 **Домен:** https://assetmanagement.team  
-**Сервер:** 5.8.10.197
+**Git tag:** `point-e` (коммит ca3f648)
 
 ***
 
-## Изменения относительно POINT D
+## Что добавлено / исправлено
 
-### Сервер и инфраструктура
-| Параметр | Было | Стало |
-|----------|------|-------|
-| IP сервера | 5.101.67.195 | **5.8.10.197** |
-| Backend для assetmanagement.team | amt (порт 8010) → 404 на /api/auth/login/ | **arenda** (порт 8000) |
-| Nginx proxy_pass | 127.0.0.1:8010 | **127.0.0.1:8000** |
+### Договоры — файлы (PDF)
+- **Загрузка:** исправлен Content-Type для FormData (убрана ручная установка без boundary), лимит 50 MB
+- **Скачивание:** endpoint `/api/contracts/{id}/files/{file_id}/download/` с авторизацией; фронт скачивает через API
+- **Media:** раздача `/media/` в production (раньше только при DEBUG); nginx проксирует на backend
 
-### Исправления
-1. **Nginx** — был остановлен; включён и запущен: `systemctl enable nginx && systemctl start nginx`
-2. **Несоответствие backend** — фронт и статика от arenda, API проксировался на amt (другой проект без auth). Запущен arenda backend, nginx переведён на порт 8000.
-3. **Явные auth-маршруты** — в `backend/amt/urls.py` добавлены маршруты `api/auth/login/`, `api/auth/logout/`, `api/auth/me/` в начало urlpatterns (на случай альтернативных конфигураций).
+### Недвижимость — удаление
+- Кнопка «Удалить» для administrator и owner
+- Обработка ProtectedError: при наличии связанных договоров — понятное сообщение
+- Права: `properties.delete` для administrator, owner
 
-### Учётные записи админов
-| Логин | Пароль |
-|-------|--------|
-| nimdaSan | nimdaParol |
-| Bahi | BPHolding |
-
-Создание/обновление: `docker compose exec backend python manage.py create_login_users`
+### Инфраструктура
+- Nginx: `client_max_body_size` 50M
+- Django: `FILE_UPLOAD_MAX_MEMORY_SIZE` 50 MB
 
 ***
 
-## Текущая архитектура на сервере
+## Восстановление POINT E
 
-```
-assetmanagement.team
-├── Статика: /var/www/assetmanagement.team (из arenda admin-frontend build)
-├── API /api/* → Nginx proxy → 127.0.0.1:8000 (arenda backend)
-└── SSL: Let's Encrypt
-```
-
-### Docker (сервер)
-| Контейнер | Проект | Порт | Используется для assetmanagement.team |
-|-----------|--------|------|--------------------------------------|
-| infra-db-1 | arenda | 5432 | ✅ БД |
-| infra-backend-1 | arenda | **8000** | ✅ API |
-| amt-backend | amt | 8010 | ❌ не используется |
-| amt-frontend | amt | 8082 | ❌ не используется |
-| amt-db | amt | — | — |
-
-### Пути на сервере
-- **arenda:** `/root/arenda` — основной проект для assetmanagement.team
-- **amt:** `/root/amt/app` — отдельный проект (rent-platform), не используется для этого домена
-
-***
-
-## Файлы, изменённые в POINT E
-
-### backend/amt/urls.py
-Добавлены явные auth-маршруты:
-```python
-from core.auth_views import LoginView, LogoutView, me
-
-path('api/auth/login/', LoginView.as_view(), name='api-login'),
-path('api/auth/logout/', LogoutView.as_view(), name='api-logout'),
-path('api/auth/me/', me, name='api-me'),
-```
-
-### backend/amt/settings.py
-- ALLOWED_HOSTS: `5.8.10.197` (вместо 5.101.67.195)
-- CORS_ORIGIN: `http://5.8.10.197:3000`
-
-### docs/setup/*, docs/fixes/*, scripts/*
-- Все вхождения IP `5.101.67.195` заменены на `5.8.10.197`
-
-### docs/SITE_AUDIT.md
-- Обновлён аудит на 02.03.2025
-
-***
-
-## Команды для восстановления состояния
-
-### Запуск arenda backend (если остановлен)
+### Git
 ```bash
-ssh root@5.8.10.197
+cd /root/arenda
+git fetch origin
+git checkout point-e
+# или
+git checkout ca3f648
+```
+
+### Деплой
+```bash
+# Backend
 cd /root/arenda/infra
-docker compose up -d db backend
+docker compose build backend --no-cache
+docker compose up -d backend
+
+# Frontend
+cd /root/arenda
+docker run --rm -v "$(pwd)/admin-frontend:/app" -w /app node:18-alpine npm run build
+sudo cp -r admin-frontend/build/* /var/www/assetmanagement.team/
+sudo chown -R www-data:www-data /var/www/assetmanagement.team/
+
+# Nginx (проверить client_max_body_size 50M и location /media/)
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
-### Проверка Nginx
-```bash
-grep proxy_pass /etc/nginx/sites-available/assetmanagement.team
-# Должно быть: proxy_pass http://127.0.0.1:8000;
-```
-
-### Создание/обновление админов
-```bash
-cd /root/arenda/infra
-docker compose exec backend python manage.py create_login_users
-```
-
-### Проверка логина
-```bash
-curl -X POST "https://assetmanagement.team/api/auth/login/" \
-  -H "Content-Type: application/json" \
-  -d '{"username":"nimdaSan","password":"nimdaParol"}'
-# Ожидается: {"token":"...","user":{...}}
-```
+### Проверка
+- [ ] Загрузка PDF в договор (до 50 MB)
+- [ ] Скачивание PDF (кнопка по имени файла)
+- [ ] Удаление недвижимости без договоров
 
 ***
 
-## Чеклист после восстановления
+## Файлы для восстановления
 
-- [ ] https://assetmanagement.team открывается
-- [ ] Логин nimdaSan / nimdaParol работает
-- [ ] Редирект на /dashboard после входа
-- [ ] Дашборд отображает данные
-- [ ] Меню по ролям работает
+| Путь | Описание |
+|------|----------|
+| backend/contracts/views.py | download_file action, destroy ProtectedError |
+| backend/amt/urls.py | media в production |
+| backend/amt/settings.py | FILE_UPLOAD_MAX_MEMORY_SIZE |
+| backend/core/permissions.py | properties.delete для owner |
+| admin-frontend/src/api/contracts.ts | downloadContractFile, FormData fix |
+| admin-frontend/src/api/client.ts | FormData Content-Type interceptor |
+| admin-frontend/src/components/ContractForm.tsx | handleDownloadFile |
+| admin-frontend/src/pages/ContractDetailPage.tsx | handleDownloadFile |
+| admin-frontend/src/pages/PropertiesPage.tsx | canDelete, handleDelete |
+| infra/nginx.conf | client_max_body_size 50M |
