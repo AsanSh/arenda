@@ -869,7 +869,21 @@ export default function AccrualsPage() {
                               Не погашено: {group.unpaid_count} | 
                               Просрочено: {group.overdue_count}
                             </div>
-                            <div className="space-y-1">
+                            <table className="min-w-full text-xs">
+                              <thead>
+                                <tr className="bg-slate-200 text-slate-700 font-semibold">
+                                  <th className="px-4 py-2.5 text-left w-8"> </th>
+                                  <th className="px-4 py-2.5 text-left w-36">Период</th>
+                                  <th className="px-4 py-2.5 text-left w-28">Срок оплаты</th>
+                                  <th className="px-4 py-2.5 text-left w-24">Просрочка</th>
+                                  <th className="px-4 py-2.5 text-left w-28">Сумма</th>
+                                  <th className="px-4 py-2.5 text-left w-28">Погашено</th>
+                                  <th className="px-4 py-2.5 text-left w-28">Остаток</th>
+                                  <th className="px-4 py-2.5 text-left w-32">Статус</th>
+                                  <th className="px-4 py-2.5 text-right">Действия</th>
+                                </tr>
+                              </thead>
+                              <tbody>
                               {group.accruals.map((accrual, idx) => {
                                 // Проверяем просрочку по дате, а не только по статусу
                                 const today = new Date();
@@ -882,27 +896,27 @@ export default function AccrualsPage() {
                                 const isPaid = accrual.status === 'paid';
                                 const isSelected = selectedAccruals.has(accrual.id);
                                 return (
-                                  <div 
+                                  <tr 
                                     key={accrual.id} 
-                                    className={`flex items-center gap-4 text-xs py-2 px-4 rounded-card hover:bg-white transition-colors border-b border-slate-100 last:border-0 ${
+                                    className={`hover:bg-white transition-colors border-b border-slate-100 last:border-0 ${
                                       isSelected ? 'bg-indigo-50' : ''
                                     }`}
                                   >
-                                  <div className="w-6 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                  <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
                                     <input
                                       type="checkbox"
                                       checked={isSelected}
                                       onChange={(e) => handleSelectAccrual(accrual.id, e.target.checked)}
                                       className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                                     />
-                                  </div>
-                                  <div className="w-32 text-slate-700">
+                                  </td>
+                                  <td className="px-4 py-2 text-slate-700 whitespace-nowrap">
                                     {new Date(accrual.period_start).toLocaleDateString('ru-RU')} - {new Date(accrual.period_end).toLocaleDateString('ru-RU')}
-                                  </div>
-                                  <div className="w-24 text-slate-700">
+                                  </td>
+                                  <td className="px-4 py-2 text-slate-700 whitespace-nowrap">
                                     {new Date(accrual.due_date).toLocaleDateString('ru-RU')}
-                                  </div>
-                                  <div className="w-20">
+                                  </td>
+                                  <td className="px-4 py-2">
                                     {(() => {
                                       const overdueDays = accrual.overdue_days || (isOverdue ? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)) : 0);
                                       return overdueDays > 0 ? (
@@ -913,17 +927,17 @@ export default function AccrualsPage() {
                                         <span className="text-slate-400">-</span>
                                       );
                                     })()}
-                                  </div>
-                                  <div className="w-24 font-medium text-slate-900">
+                                  </td>
+                                  <td className="px-4 py-2 font-medium text-slate-900 whitespace-nowrap">
                                     {formatAmount(accrual.final_amount)} {accrual.currency || 'с'}
-                                  </div>
-                                  <div className="w-24 text-slate-600">
+                                  </td>
+                                  <td className="px-4 py-2 text-slate-600 whitespace-nowrap">
                                     {formatAmount(accrual.paid_amount)} {accrual.currency || 'с'}
-                                  </div>
-                                  <div className={`w-24 font-medium ${isOverdue ? 'text-red-600' : 'text-slate-900'}`}>
+                                  </td>
+                                  <td className={`px-4 py-2 font-medium whitespace-nowrap ${isOverdue ? 'text-red-600' : 'text-slate-900'}`}>
                                     {formatAmount(accrual.balance)} {accrual.currency || 'с'}
-                                  </div>
-                                  <div className="w-32">
+                                  </td>
+                                  <td className="px-4 py-2">
                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
                                       accrual.status === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                                       accrual.status === 'overdue' ? 'bg-red-50 text-red-700 border-red-200' :
@@ -933,8 +947,9 @@ export default function AccrualsPage() {
                                     }`}>
                                       {getStatusLabel(accrual.status)}
                                     </span>
-                                  </div>
-                                  <div className="flex-1 flex justify-end gap-2">
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    <div className="flex justify-end gap-2 flex-wrap">
                                     {!isPaid && (
                                       <button
                                         onClick={(e) => {
@@ -993,12 +1008,14 @@ export default function AccrualsPage() {
                                     >
                                       Удалить
                                     </button>
-                                  </div>
-                                </div>
+                                    </div>
+                                  </td>
+                                </tr>
                               );
                             })}
+                              </tbody>
+                            </table>
                           </div>
-                        </div>
                         </div>
                       </td>
                     </tr>

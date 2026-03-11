@@ -11,6 +11,15 @@ import {
 } from '../api/contracts';
 import { FileText, Plus, Trash2 } from 'lucide-react';
 
+interface DiscountPeriod {
+  id: number;
+  start_date: string;
+  end_date: string;
+  discount_percent: number;
+  reason: string;
+  summary: string;
+}
+
 interface Contract {
   id: number;
   number: string;
@@ -26,6 +35,7 @@ interface Contract {
   deposit_enabled: boolean;
   advance_enabled: boolean;
   comment: string;
+  discount_periods?: DiscountPeriod[];
 }
 
 export default function ContractDetailPage() {
@@ -66,6 +76,7 @@ export default function ContractDetailPage() {
         deposit_enabled: data.deposit_enabled,
         advance_enabled: data.advance_enabled,
         comment: data.comment || '',
+        discount_periods: data.discount_periods || [],
       });
       setLoading(false);
     } catch (error) {
@@ -240,6 +251,23 @@ export default function ContractDetailPage() {
               <div>
                 <span className="text-sm text-gray-500">Комментарий:</span>
                 <p className="font-medium">{contract.comment}</p>
+              </div>
+            )}
+            {contract.discount_periods && contract.discount_periods.length > 0 && (
+              <div>
+                <span className="text-sm text-gray-500 block mb-2">Льготные периоды:</span>
+                <div className="space-y-2">
+                  {contract.discount_periods.map((dp) => (
+                    <div key={dp.id} className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-sm font-medium text-amber-900">
+                        {new Date(dp.start_date).toLocaleDateString('ru-RU')} – {new Date(dp.end_date).toLocaleDateString('ru-RU')}
+                        {dp.discount_percent > 0 && ` · Скидка ${dp.discount_percent}%`}
+                      </p>
+                      {dp.reason && <p className="text-xs text-gray-600 mt-0.5">{dp.reason}</p>}
+                      {dp.summary && <p className="text-sm text-amber-800 mt-1 font-medium">{dp.summary}</p>}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

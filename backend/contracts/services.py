@@ -95,7 +95,7 @@ class ContractService:
         old_start_date,
         old_end_date,
     ) -> None:
-        """Обновление начислений при изменении договора."""
+        """Обновление начислений при изменении договора (в т.ч. льготных периодов)."""
         if contract.status == "active" and old_status != "active":
             if not Accrual.objects.filter(contract=contract).exists():
                 AccrualService.generate_accruals_for_contract(contract)
@@ -104,6 +104,9 @@ class ContractService:
         elif old_start_date != contract.start_date or old_end_date != contract.end_date:
             Accrual.objects.filter(contract=contract, status="planned").delete()
             AccrualService.generate_accruals_for_contract(contract)
+        else:
+            # Изменены только льготные периоды или др. — обновить planned начисления
+            AccrualService.fix_accruals_for_contract(contract)
 
     @staticmethod
     @transaction.atomic

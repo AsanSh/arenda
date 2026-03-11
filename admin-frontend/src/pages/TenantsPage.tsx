@@ -11,6 +11,11 @@ import { useUser } from '../contexts/UserContext';
 import { useCompactStyles } from '../hooks/useCompactStyles';
 import { DatePreset } from '../utils/datePresets';
 
+interface AdditionalContact {
+  name: string;
+  phone: string;
+}
+
 interface Tenant {
   id?: number;
   name: string;
@@ -22,6 +27,7 @@ interface Tenant {
   inn: string;
   address: string;
   comment: string;
+  additional_contacts?: AdditionalContact[];
 }
 
 type SortField = 'name' | 'type' | 'email' | 'phone' | 'inn';
@@ -117,7 +123,15 @@ export default function TenantsPage() {
       fetchTenants();
     } catch (error: any) {
       console.error('Error saving tenant:', error);
-      const errorMessage = error?.response?.data?.detail || error?.response?.data?.error || 'Ошибка при сохранении';
+      const data = error?.response?.data;
+      let errorMessage = data?.detail || data?.error || 'Ошибка при сохранении';
+      if (typeof data === 'object' && !data.detail && !data.error) {
+        const fieldErrors = Object.entries(data)
+          .filter(([, v]) => Array.isArray(v) ? v.length : v)
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+          .join('\n');
+        if (fieldErrors) errorMessage = fieldErrors;
+      }
       alert(errorMessage);
     } finally {
       setFormLoading(false);
@@ -262,6 +276,9 @@ export default function TenantsPage() {
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="bg-gray-50">
               <tr>
+              <th className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider w-14 min-w-[2.5rem]`}>
+                №
+              </th>
               <th 
                 className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider cursor-pointer hover:bg-gray-100 transition-colors`}
                 onClick={() => handleSort('name')}
@@ -301,8 +318,11 @@ export default function TenantsPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
-              {tenants.map((tenant) => (
+              {tenants.map((tenant, index) => (
               <tr key={tenant.id} className={`hover:bg-slate-50 transition-colors group ${compact.rowHeight}`}>
+                <td className={`${compact.cellPadding} whitespace-nowrap text-slate-500 ${compact.tableText}`}>
+                  {index + 1}
+                </td>
                 <td className={`${compact.cellPadding} whitespace-nowrap`}>
                   <button
                     onClick={() => navigate(`/tenants/${tenant.id}`)}

@@ -38,6 +38,41 @@ class ContractFile(models.Model):
         return f"{self.get_file_type_display()}: {self.title or self.file.name}"
 
 
+class ContractDiscountPeriod(models.Model):
+    """Льготный период: снижение арендной платы (ремонт, каникулы и т.д.)"""
+    contract = models.ForeignKey(
+        'Contract',
+        on_delete=models.CASCADE,
+        related_name='discount_periods',
+        verbose_name='Договор',
+    )
+    start_date = models.DateField(verbose_name='Дата начала льготы')
+    end_date = models.DateField(verbose_name='Дата окончания льготы')
+    discount_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('100'))],
+        verbose_name='Скидка (%)',
+    )
+    reason = models.CharField(max_length=255, blank=True, verbose_name='Причина льготы')
+    summary = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name='Краткое описание',
+        help_text='Напр.: «К оплате 45 000 вместо 50 000 из-за ремонта»',
+    )
+
+    class Meta:
+        db_table = 'contract_discount_periods'
+        verbose_name = 'Льготный период'
+        verbose_name_plural = 'Льготные периоды'
+        ordering = ['start_date']
+
+    def __str__(self):
+        return f"{self.start_date}–{self.end_date}: {self.discount_percent}%"
+
+
 class Contract(models.Model):
     """Договор аренды"""
     STATUS_CHOICES = [

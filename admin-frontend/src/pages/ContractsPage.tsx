@@ -57,6 +57,7 @@ export default function ContractsPage() {
     advance_months: number;
     status: string;
     comment: string;
+    discount_periods?: Array<{ id?: number; start_date: string; end_date: string; discount_percent: number | string; reason?: string; summary?: string }>;
   } | null>(null);
   const navigate = useNavigate();
   const [filters, setFilters] = useState({
@@ -123,36 +124,22 @@ export default function ContractsPage() {
 
   const [formLoading, setFormLoading] = useState(false);
 
+  const handleCloseDrawer = useCallback(() => {
+    setIsDrawerOpen(false);
+    setEditingContract(null);
+  }, []);
+
   const handleSubmit = useCallback(async (data: any) => {
     setFormLoading(true);
     try {
       if (editingContract?.id) {
         await client.patch(`/contracts/${editingContract.id}/`, data);
-        setIsDrawerOpen(false);
-        setEditingContract(null);
+        fetchContracts();
+        handleCloseDrawer();
       } else {
         const created = await client.post('/contracts/', data);
-        const newContract = created.data;
         fetchContracts();
-        // Оставляем форму открытой в режиме редактирования — можно сразу добавить файлы
-        setEditingContract({
-          id: newContract.id,
-          signed_at: newContract.signed_at,
-          property: newContract.property,
-          tenant: newContract.tenant,
-          start_date: newContract.start_date,
-          end_date: newContract.end_date,
-          rent_amount: newContract.rent_amount,
-          currency: newContract.currency,
-          exchange_rate_source: newContract.exchange_rate_source || 'nbkr',
-          due_day: newContract.due_day ?? 25,
-          deposit_enabled: newContract.deposit_enabled ?? false,
-          deposit_amount: newContract.deposit_amount || '',
-          advance_enabled: newContract.advance_enabled ?? false,
-          advance_months: newContract.advance_months ?? 1,
-          status: newContract.status || 'draft',
-          comment: newContract.comment || '',
-        });
+        handleCloseDrawer();
       }
     } catch (error: any) {
       console.error('Error saving contract:', error);
@@ -161,29 +148,23 @@ export default function ContractsPage() {
     } finally {
       setFormLoading(false);
     }
-  }, [editingContract]);
+  }, [editingContract, handleCloseDrawer]);
 
   const handleEdit = async (contract: Contract) => {
     try {
       const response = await client.get(`/contracts/${contract.id}/`);
       const fullContract = response.data;
       setEditingContract({
+        ...fullContract,
         id: fullContract.id,
         signed_at: fullContract.signed_at,
         property: fullContract.property,
         tenant: fullContract.tenant,
-        start_date: fullContract.start_date,
-        end_date: fullContract.end_date,
-        rent_amount: fullContract.rent_amount,
-        currency: fullContract.currency,
-        exchange_rate_source: fullContract.exchange_rate_source,
-        due_day: fullContract.due_day,
-        deposit_enabled: fullContract.deposit_enabled,
         deposit_amount: fullContract.deposit_amount || '',
-        advance_enabled: fullContract.advance_enabled,
         advance_months: fullContract.advance_months || 1,
         status: fullContract.status || 'draft',
         comment: fullContract.comment || '',
+        discount_periods: fullContract.discount_periods || [],
       });
       setIsDrawerOpen(true);
     } catch (error: any) {
@@ -210,22 +191,18 @@ export default function ContractsPage() {
       const newEndDateStr = newEndDate.toISOString().split('T')[0];
       
       setEditingContract({
+        ...fullContract,
         id: fullContract.id,
         signed_at: fullContract.signed_at,
         property: fullContract.property,
         tenant: fullContract.tenant,
         start_date: fullContract.end_date, // Новая дата начала = старая дата окончания
         end_date: newEndDateStr,
-        rent_amount: fullContract.rent_amount,
-        currency: fullContract.currency,
-        exchange_rate_source: fullContract.exchange_rate_source,
-        due_day: fullContract.due_day,
-        deposit_enabled: fullContract.deposit_enabled,
         deposit_amount: fullContract.deposit_amount || '',
-        advance_enabled: fullContract.advance_enabled,
         advance_months: fullContract.advance_months || 1,
         status: fullContract.status || 'draft',
         comment: fullContract.comment || '',
+        discount_periods: fullContract.discount_periods || [],
       });
       setIsDrawerOpen(true);
     } catch (error) {
@@ -494,10 +471,7 @@ export default function ContractsPage() {
 
       <Drawer
         isOpen={isDrawerOpen}
-        onClose={() => {
-          setIsDrawerOpen(false);
-          setEditingContract(null);
-        }}
+        onClose={handleCloseDrawer}
         title={(() => {
           if (!editingContract) return 'Добавить договор';
           const originalContract = contracts.find(c => c.id === editingContract.id);
@@ -510,10 +484,7 @@ export default function ContractsPage() {
           <div className="flex gap-3 justify-end">
             <button
               type="button"
-              onClick={() => {
-                setIsDrawerOpen(false);
-                setEditingContract(null);
-              }}
+              onClick={handleCloseDrawer}
               className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-card hover:bg-slate-50 transition-colors"
             >
               Отмена

@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import client from '../api/client';
+import { Plus, Trash2 } from 'lucide-react';
+
+interface AdditionalContact {
+  name: string;
+  phone: string;
+}
 
 interface Tenant {
   id?: number;
@@ -11,6 +16,7 @@ interface Tenant {
   inn: string;
   address: string;
   comment: string;
+  additional_contacts?: AdditionalContact[];
 }
 
 /** Только типы контрагентов (не сотрудники). Сотрудники — в Настройки → Сотрудники. */
@@ -38,11 +44,15 @@ export default function TenantForm({ tenant, onSubmit, loading = false }: Tenant
     inn: '',
     address: '',
     comment: '',
+    additional_contacts: [],
   });
 
   useEffect(() => {
     if (tenant) {
-      setFormData(tenant);
+      setFormData({
+        ...tenant,
+        additional_contacts: tenant.additional_contacts || [],
+      });
     }
   }, [tenant]);
 
@@ -94,6 +104,69 @@ export default function TenantForm({ tenant, onSubmit, loading = false }: Tenant
           onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
           className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
         />
+      </div>
+
+      {/* Доп. контактные лица — сразу под основным контактом */}
+      <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-semibold text-slate-700">Дополнительные контакты (ФИО + Телефон)</span>
+          <button
+            type="button"
+            onClick={() => setFormData({
+              ...formData,
+              additional_contacts: [...(formData.additional_contacts || []), { name: '', phone: '' }],
+            })}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+          >
+            <Plus className="h-4 w-4" />
+            Добавить
+          </button>
+        </div>
+        {(formData.additional_contacts || []).length === 0 ? (
+          <p className="text-xs text-slate-500 italic">Нажмите «+ Добавить» для добавления контакта</p>
+        ) : (
+          <div className="space-y-2">
+            {(formData.additional_contacts || []).map((ac, idx) => (
+              <div key={idx} className="flex gap-2 items-start p-2 bg-white rounded border border-slate-200">
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="ФИО"
+                    value={ac.name}
+                    onChange={(e) => {
+                      const updated = [...(formData.additional_contacts || [])];
+                      updated[idx] = { ...updated[idx], name: e.target.value };
+                      setFormData({ ...formData, additional_contacts: updated });
+                    }}
+                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
+                  />
+                  <input
+                    type="tel"
+                    placeholder="Телефон"
+                    value={ac.phone}
+                    onChange={(e) => {
+                      const updated = [...(formData.additional_contacts || [])];
+                      updated[idx] = { ...updated[idx], phone: e.target.value };
+                      setFormData({ ...formData, additional_contacts: updated });
+                    }}
+                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormData({
+                    ...formData,
+                    additional_contacts: (formData.additional_contacts || []).filter((_, i) => i !== idx),
+                  })}
+                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors shrink-0"
+                  title="Удалить"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div>

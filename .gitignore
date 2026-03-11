@@ -51,6 +51,9 @@ backups/*.tar.gz
 backups/*.sql
 !backups/Point_*/
 
+# Restore point ZIP-архивы
+*.zip
+
 # Temporary files
 *.tmp
 *.bak

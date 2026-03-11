@@ -133,6 +133,13 @@ class Tenant(models.Model):
     inn = models.CharField(max_length=20, blank=True, verbose_name='ИНН')
     address = models.TextField(blank=True, verbose_name='Адрес')
     comment = models.TextField(blank=True, verbose_name='Комментарий')
+    # Дополнительные контактные лица: [{"name": "ФИО", "phone": "996..."}, ...]
+    additional_contacts = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name='Доп. контактные лица',
+        help_text='Список {name, phone}',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

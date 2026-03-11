@@ -1,9 +1,14 @@
 from django.contrib import admin
-from .models import Contract, ContractFile
+from .models import Contract, ContractFile, ContractDiscountPeriod
 
 
 class ContractFileInline(admin.TabularInline):
     model = ContractFile
+    extra = 0
+
+
+class ContractDiscountPeriodInline(admin.TabularInline):
+    model = ContractDiscountPeriod
     extra = 0
 
 
@@ -13,7 +18,7 @@ class ContractAdmin(admin.ModelAdmin):
     list_filter = ['status', 'currency']
     search_fields = ['number', 'property__name', 'tenant__name']
     date_hierarchy = 'start_date'
-    inlines = [ContractFileInline]
+    inlines = [ContractFileInline, ContractDiscountPeriodInline]
 
 
 @admin.register(ContractFile)

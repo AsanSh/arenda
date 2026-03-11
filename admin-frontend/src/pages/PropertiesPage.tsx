@@ -124,8 +124,17 @@ export default function PropertiesPage() {
     }
   }, [editingProperty]);
 
-  const handleEdit = (property: Property) => {
-    setEditingProperty(property);
+  const handleEdit = async (property: Property) => {
+    if (property.id) {
+      try {
+        const { data } = await client.get<Property>(`/properties/${property.id}/`);
+        setEditingProperty(data);
+      } catch {
+        setEditingProperty(property);
+      }
+    } else {
+      setEditingProperty(property);
+    }
     setIsDrawerOpen(true);
   };
 

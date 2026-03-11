@@ -11,6 +11,7 @@ from .models import Contract, ContractFile
 from .serializers import ContractSerializer, ContractListSerializer, ContractFileSerializer
 from .services import ContractService
 from accruals.models import Accrual
+from accruals.services import AccrualService
 from core.mixins import DataScopingMixin
 from core.permissions import ReadOnlyForClients, CanReadResource, CanWriteResource, CanReadResource, CanWriteResource
 
@@ -22,7 +23,7 @@ class ContractViewSet(DataScopingMixin, viewsets.ModelViewSet):
     """
     queryset = Contract.objects.select_related(
         'property', 'tenant', 'landlord'
-    ).prefetch_related('files').all()
+    ).prefetch_related('files', 'discount_periods').all()
     permission_classes = [IsAuthenticated, CanReadResource, ReadOnlyForClients]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'property', 'tenant']

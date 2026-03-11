@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import client from '../api/client';
 import { fetchContractFiles, uploadContractFile, deleteContractFile, downloadContractFile, type ContractFile } from '../api/contracts';
-import { FileText, Plus, Trash2 } from 'lucide-react';
+import { FileText, Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Property {
   id: number;
@@ -30,6 +30,7 @@ interface Contract {
   advance_months: number;
   status: string;
   comment: string;
+  discount_periods?: Array<{ id?: number; start_date: string; end_date: string; discount_percent: number | string; reason?: string; summary?: string }>;
 }
 
 interface ContractFormProps {
@@ -40,10 +41,12 @@ interface ContractFormProps {
 }
 
 interface DiscountPeriod {
+  id?: number;
   start_date: string;
   end_date: string;
   discount_percent: string;
-  comment: string;
+  reason: string;
+  summary: string;
 }
 
 export default function ContractForm({ contract, onSubmit, loading = false, isProlongation = false }: ContractFormProps) {
@@ -81,6 +84,23 @@ export default function ContractForm({ contract, onSubmit, loading = false, isPr
       fetchContractFiles(contract.id).then(setFiles).catch(() => setFiles([]));
     } else {
       setFiles([]);
+    }
+  }, [contract?.id]);
+
+  useEffect(() => {
+    if (contract?.discount_periods?.length) {
+      setDiscountPeriods(contract.discount_periods.map((dp: { id?: number; start_date: string; end_date: string; discount_percent: number | string; reason?: string; summary?: string }) => ({
+        id: dp.id,
+        start_date: dp.start_date || '',
+        end_date: dp.end_date || '',
+        discount_percent: String(dp.discount_percent ?? ''),
+        reason: dp.reason || '',
+        summary: dp.summary || '',
+      })));
+      setExpandedDiscountIndex(null);
+    } else {
+      setDiscountPeriods([]);
+      setExpandedDiscountIndex(null);
     }
   }, [contract?.id]);
 
@@ -195,7 +215,8 @@ export default function ContractForm({ contract, onSubmit, loading = false, isPr
       start_date: formData.start_date || '',
       end_date: formData.end_date || '',
       discount_percent: '',
-      comment: '',
+      reason: '',
+      summary: '',
     }]);
   };
 
@@ -210,6 +231,7 @@ export default function ContractForm({ contract, onSubmit, loading = false, isPr
   };
 
   const [activeTab, setActiveTab] = useState<'general' | 'finance' | 'files-status'>('general');
+  const [expandedDiscountIndex, setExpandedDiscountIndex] = useState<number | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,6 +241,15 @@ export default function ContractForm({ contract, onSubmit, loading = false, isPr
       tenant: parseInt(formData.tenant),
       rent_amount: formData.rent_amount,
       deposit_amount: formData.deposit_enabled ? formData.deposit_amount : '0',
+      discount_periods: discountPeriods
+        .filter((p) => p.start_date && p.end_date)
+        .map((p) => ({
+          start_date: p.start_date,
+          end_date: p.end_date,
+          discount_percent: parseFloat(p.discount_percent) || 0,
+          reason: p.reason || '',
+          summary: p.summary || '',
+        })),
     };
     await onSubmit(payload);
   };
@@ -566,77 +597,123 @@ export default function ContractForm({ contract, onSubmit, loading = false, isPr
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
             <p className="text-xs text-blue-700">
-              <strong>Льготные периоды:</strong> Укажите периоды с уменьшенной арендной платой (например, для ремонта, каникул и т.д.)
+              <strong>Льготные периоды:</strong> Укажите периоды с уменьшенной арендной платой. В поле «Краткое описание» укажите, сколько к оплате вместо полной суммы (напр.: «К оплате 45 000 вместо 50 000 из-за ремонта»).
             </p>
           </div>
           
-          {discountPeriods.map((period, index) => (
-            <div key={index} className="border border-slate-200 rounded-lg p-4 bg-slate-50">
-              <div className="flex justify-between items-center mb-3">
-                <h4 className="text-xs font-semibold text-slate-700">Льготный период #{index + 1}</h4>
-                <button
-                  type="button"
-                  onClick={() => removeDiscountPeriod(index)}
-                  className="text-xs text-red-600 hover:text-red-800"
-                >
-                  Удалить
-                </button>
+          {discountPeriods.map((period, index) => {
+            const isSaved = !!period.id;
+            const isExpanded = expandedDiscountIndex === index || !isSaved;
+            const formatDate = (s: string) => s ? new Date(s).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+            const oneLiner = isSaved
+              ? `${formatDate(period.start_date)} – ${formatDate(period.end_date)}${period.discount_percent ? ` · ${period.discount_percent}%` : ''}${period.summary ? ` · ${period.summary}` : period.reason ? ` · ${period.reason}` : ''}`.trim()
+              : '';
+
+            return (
+              <div key={period.id ?? index} className="border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
+                {isSaved && !isExpanded ? (
+                  <button
+                    type="button"
+                    onClick={() => setExpandedDiscountIndex(index)}
+                    className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-100 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-slate-800 truncate block">{oneLiner || `Льготный период #${index + 1}`}</span>
+                    </div>
+                    <span className="shrink-0 px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                      Применён
+                    </span>
+                    <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                  </button>
+                ) : (
+                  <>
+                    <div className="flex justify-between items-center px-4 py-3 border-b border-slate-200 bg-white/50">
+                      <h4 className="text-xs font-semibold text-slate-700">Льготный период #{index + 1}</h4>
+                      <div className="flex items-center gap-2">
+                        {isSaved && (
+                          <>
+                            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                              Применён
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setExpandedDiscountIndex(null)}
+                              className="p-1 text-slate-500 hover:text-slate-700"
+                              title="Свернуть"
+                            >
+                              <ChevronUp className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeDiscountPeriod(index)}
+                          className="text-xs text-red-600 hover:text-red-800"
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    </div>
+                    <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Дата начала льготы *</label>
+                        <input
+                          type="date"
+                          required
+                          value={period.start_date}
+                          onChange={(e) => updateDiscountPeriod(index, 'start_date', e.target.value)}
+                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Дата окончания льготы *</label>
+                        <input
+                          type="date"
+                          required
+                          value={period.end_date}
+                          onChange={(e) => updateDiscountPeriod(index, 'end_date', e.target.value)}
+                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Скидка (%)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={period.discount_percent}
+                          onChange={(e) => updateDiscountPeriod(index, 'discount_percent', e.target.value)}
+                          placeholder="0"
+                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Причина льготы</label>
+                        <input
+                          type="text"
+                          value={period.reason}
+                          onChange={(e) => updateDiscountPeriod(index, 'reason', e.target.value)}
+                          placeholder="Ремонт, каникулы и т.д."
+                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Краткое описание (при открытии договора сразу видно)</label>
+                        <input
+                          type="text"
+                          value={period.summary}
+                          onChange={(e) => updateDiscountPeriod(index, 'summary', e.target.value)}
+                          placeholder="Напр.: К оплате 45 000 вместо 50 000 сом из-за ремонта"
+                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Дата начала льготы *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={period.start_date}
-                    onChange={(e) => updateDiscountPeriod(index, 'start_date', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Дата окончания льготы *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={period.end_date}
-                    onChange={(e) => updateDiscountPeriod(index, 'end_date', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Скидка (%)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    value={period.discount_percent}
-                    onChange={(e) => updateDiscountPeriod(index, 'discount_percent', e.target.value)}
-                    placeholder="0"
-                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Причина льготы
-                  </label>
-                  <input
-                    type="text"
-                    value={period.comment}
-                    onChange={(e) => updateDiscountPeriod(index, 'comment', e.target.value)}
-                    placeholder="Ремонт, каникулы и т.д."
-                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
           
           <button
             type="button"

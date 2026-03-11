@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Tenant, ExchangeRate, Request, InvestorLink, StaffAssignment, AuditLog
+from .utils import normalize_phone
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -23,52 +24,48 @@ class AuditLogSerializer(serializers.ModelSerializer):
 class TenantSerializer(serializers.ModelSerializer):
     """Сериализатор для контрагента"""
     type_display = serializers.CharField(source='get_type_display', read_only=True)
-    
+    email = serializers.EmailField(required=False, allow_blank=True)
+
     def validate_phone(self, value):
-        """Валидация уникальности номера телефона"""
-        if not value:
+        """Валидация и нормализация номера (формат 996XXXXXXXXX как в core.utils)"""
+        if not value or not str(value).strip():
             return value
-        
-        # Нормализуем номер для проверки
-        normalized = ''.join(filter(str.isdigit, value))
-        if normalized.startswith('996') and len(normalized) == 12:
-            normalized = f"+{normalized}"
-        elif len(normalized) == 9:
-            normalized = f"+996{normalized}"
-        else:
-            normalized = value
-        
-        # Проверяем уникальность (исключаем текущий объект при обновлении)
+        normalized = normalize_phone(str(value).strip())
+        if not normalized:
+            raise serializers.ValidationError(
+                "Некорректный номер телефона. Укажите 9 или 12 цифр (с 996 или без)."
+            )
         instance = self.instance
-        existing = Tenant.objects.filter(phone=normalized)
-        if instance:
-            existing = existing.exclude(pk=instance.pk)
-        
-        # Также проверяем варианты без + и с разными форматами
-        variants = [
-            normalized,
-            normalized.replace('+', ''),
-            normalized.replace('+996', ''),
-            f"996{normalized.replace('+', '').replace('996', '')}" if normalized.startswith('+996') else normalized,
-        ]
-        
-        for variant in variants:
-            if variant:
-                existing_variant = Tenant.objects.filter(phone=variant)
-                if instance:
-                    existing_variant = existing_variant.exclude(pk=instance.pk)
-                if existing_variant.exists():
-                    raise serializers.ValidationError(
-                        f"Контрагент с номером {variant} уже существует. Один номер может принадлежать только одному контрагенту."
-                    )
-        
+        for variant in [normalized, f"+{normalized}"]:
+            existing = Tenant.objects.filter(phone=variant)
+            if instance:
+                existing = existing.exclude(pk=instance.pk)
+            if existing.exists():
+                raise serializers.ValidationError(
+                    "Контрагент с этим номером телефона уже существует."
+                )
         return normalized
     
+    def validate_additional_contacts(self, value):
+        if not isinstance(value, list):
+            return []
+        result = []
+        for item in value:
+            if not isinstance(item, dict):
+                continue
+            name = (item.get('name') or '').strip()
+            phone = (item.get('phone') or '').strip()
+            if name or phone:
+                normalized = normalize_phone(phone) if phone else ''
+                result.append({'name': name, 'phone': normalized or phone})
+        return result
+
     class Meta:
         model = Tenant
         fields = [
             'id', 'name', 'type', 'type_display', 'contact_person',
             'email', 'phone', 'inn', 'address', 'comment',
+            'additional_contacts',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
