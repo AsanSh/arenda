@@ -22,6 +22,13 @@ import SettingsPage from './pages/SettingsPage';
 import HelpPage from './pages/HelpPage';
 import RequestsPage from './pages/RequestsPage';
 import AccessDeniedPage from './pages/AccessDeniedPage';
+import AnalyticsPropertiesPage from './pages/AnalyticsPropertiesPage';
+import InvestorCabinetPage from './pages/InvestorCabinetPage';
+import ForecastSmartPage from './pages/ForecastSmartPage';
+
+const FEATURE_ANALYTICS = process.env.REACT_APP_FEATURE_ANALYTICS === 'true';
+const FEATURE_INVESTOR_PORTAL = process.env.REACT_APP_FEATURE_INVESTOR_PORTAL === 'true';
+const FEATURE_SMART_FORECAST = process.env.REACT_APP_FEATURE_SMART_FORECAST === 'true';
 
 function App() {
   return (
@@ -209,6 +216,42 @@ function App() {
               </ProtectedRoute>
             }
           />
+          {FEATURE_ANALYTICS && (
+            <Route
+              path="/analytics/properties"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <AnalyticsPropertiesPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+          )}
+          {FEATURE_INVESTOR_PORTAL && (
+            <Route
+              path="/investor"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <InvestorCabinetPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+          )}
+          {FEATURE_SMART_FORECAST && (
+            <Route
+              path="/analytics/forecast-smart"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ForecastSmartPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+          )}
           </Routes>
         </Router>
       </DensityProvider>

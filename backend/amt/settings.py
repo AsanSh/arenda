@@ -49,6 +49,8 @@ INSTALLED_APPS = [
     'dashboard',
     'reports',
     'notifications',
+    'analytics',
+    'investor_portal',
 ]
 
 MIDDLEWARE = [
@@ -179,6 +181,13 @@ CSRF_COOKIE_SECURE = False  # Для HTTP, установите True для HTTP
 CSRF_COOKIE_HTTPONLY = False
 CSRF_USE_SESSIONS = False
 CSRF_COOKIE_SAMESITE = 'Lax'
+
+# --- Feature flags (safe launch, no breaking changes) ---
+# Включение: FEATURE_ANALYTICS=true в .env или переменных окружения
+# Если false — новые модули не регистрируются, сайт работает как раньше
+FEATURE_ANALYTICS = os.environ.get('FEATURE_ANALYTICS', 'false').lower() in ('true', '1', 'yes')
+FEATURE_INVESTOR_PORTAL = os.environ.get('FEATURE_INVESTOR_PORTAL', 'false').lower() in ('true', '1', 'yes')
+FEATURE_SMART_FORECAST = os.environ.get('FEATURE_SMART_FORECAST', 'false').lower() in ('true', '1', 'yes')
 
 # Green API — WhatsApp для OTP-логина
 # Настройки из личного кабинета: https://console.green-api.com (apiUrl, idInstance, apiTokenInstance)

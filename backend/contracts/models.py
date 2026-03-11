@@ -95,6 +95,15 @@ class Contract(models.Model):
         ('best', 'Лучший курс'),
     ]
     
+    # TODO SaaS: filter by company_id when multi-tenant enabled. Null = все компании.
+    company = models.ForeignKey(
+        'core.Company',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='contracts',
+        verbose_name='Компания',
+    )
     # Автогенерация номера: AMT-YYYY-DDMM-XXX (год, дата день+месяц, порядковый номер за день)
     number = models.CharField(max_length=50, unique=True, verbose_name='Номер договора')
     signed_at = models.DateField(verbose_name='Дата подписания')

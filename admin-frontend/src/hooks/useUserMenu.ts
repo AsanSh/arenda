@@ -1,5 +1,5 @@
-import { useUser } from '../contexts/UserContext';
 import React from 'react';
+import { useUser } from '../contexts/UserContext';
 import {
   LayoutDashboard,
   Wallet,
@@ -14,9 +14,16 @@ import {
   Settings,
   HelpCircle,
   MessageSquare,
+  BarChart3,
+  TrendingUp,
+  PieChart,
 } from 'lucide-react';
 import { getAllowedSections, dbTypeToUserType } from '../utils/permissions';
 import type { Section } from '../utils/permissions';
+
+const FEATURE_ANALYTICS = process.env.REACT_APP_FEATURE_ANALYTICS === 'true';
+const FEATURE_INVESTOR_PORTAL = process.env.REACT_APP_FEATURE_INVESTOR_PORTAL === 'true';
+const FEATURE_SMART_FORECAST = process.env.REACT_APP_FEATURE_SMART_FORECAST === 'true';
 
 interface MenuItem {
   name: string;
@@ -40,8 +47,11 @@ const FULL_MENU: MenuItem[] = [
   { name: 'Начисления', href: '/accruals', icon: Calculator, section: 'accruals' },
   { name: 'Поступления', href: '/payments', icon: CreditCard, section: 'payments' },
   { name: 'Отчет', href: '/reports', icon: FileBarChart, section: 'reports' },
+  ...(FEATURE_ANALYTICS ? [{ name: 'Аналитика', href: '/analytics/properties', icon: BarChart3, section: 'reports' as const }] : []),
+  ...(FEATURE_SMART_FORECAST ? [{ name: 'Умный прогноз', href: '/analytics/forecast-smart', icon: TrendingUp, section: 'reports' as const }] : []),
   { divider: true } as MenuItem,
   { name: 'Рассылки', href: '/notifications', icon: Mail },
+  ...(FEATURE_INVESTOR_PORTAL ? [{ name: 'Кабинет инвестора', href: '/investor', icon: PieChart }] : []),
   { name: 'Заявки', href: '/requests', icon: MessageSquare },
   { name: 'Настройки', href: '/settings', icon: Settings, section: 'settings' },
   { name: 'Помощь', href: '/help', icon: HelpCircle },

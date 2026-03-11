@@ -21,6 +21,7 @@ class AccountViewSet(DataScopingMixin, viewsets.ModelViewSet):
     queryset = Account.objects.select_related('owner').all()
     permission_classes = [IsAuthenticated, CanReadResource, CanWriteResource]
     filter_backends = []
+    pagination_class = None  # Возвращаем все счета (для выбора при приёме платежа и на странице счетов)
     
     def get_serializer_class(self):
         if self.action == 'list':

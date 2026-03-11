@@ -43,24 +43,21 @@ export default function BulkAcceptPaymentModal({
     setLoadingAccounts(true);
     try {
       const response = await client.get('/accounts/');
-      const accountsList = response.data.results || response.data;
-      // Фильтруем только активные счета в той же валюте
-      const filteredAccounts = accountsList.filter(
-        (acc: Account) => acc.is_active && acc.currency === currency
-      );
-      setAccounts(filteredAccounts);
-      
-      // Если есть счет "ОсОО ЖиВ сомы", выбираем его по умолчанию
-      const defaultAccount = filteredAccounts.find((acc: Account) => 
-        acc.name.includes('ЖиВ') && acc.currency === 'KGS'
-      );
+      const raw = response.data;
+      const accountsList = Array.isArray(raw) ? raw : (raw?.results ?? raw ?? []);
+      const activeAccounts = (Array.isArray(accountsList) ? accountsList : []).filter((acc: Account) => acc.is_active !== false);
+      const filteredAccounts = activeAccounts.filter((acc: Account) => acc.currency === currency);
+      const toShow = filteredAccounts.length > 0 ? filteredAccounts : activeAccounts;
+      setAccounts(toShow);
+      const defaultAccount = toShow.find((acc: Account) => acc.name.includes('ЖиВ') && acc.currency === 'KGS');
       if (defaultAccount) {
         setAccount(defaultAccount.id);
-      } else if (filteredAccounts.length > 0) {
-        setAccount(filteredAccounts[0].id);
+      } else if (toShow.length > 0) {
+        setAccount(toShow[0].id);
       }
     } catch (error) {
       console.error('Error fetching accounts:', error);
+      setAccounts([]);
     } finally {
       setLoadingAccounts(false);
     }

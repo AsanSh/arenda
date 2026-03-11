@@ -1,0 +1,23 @@
+# AMT: Автодеплой при push в main
+# Требует GitHub Secrets: DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY
+
+name: Deploy to production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Ручной запуск из GitHub Actions UI
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /root/arenda/infra && sudo ./deploy.sh
+          script_stop: true

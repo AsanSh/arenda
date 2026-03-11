@@ -1,4 +1,5 @@
 from rest_framework import viewsets, filters, status
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -12,11 +13,18 @@ from .permissions import ReadOnlyForClients, CanReadResource, CanWriteResource
 from .audit import log_audit
 
 
+class TenantPagination(PageNumberPagination):
+    page_size = 100
+    page_size_query_param = 'page_size'
+    max_page_size = 10000
+
+
 class TenantViewSet(DataScopingMixin, viewsets.ModelViewSet):
     """ViewSet для управления контрагентами с RBAC. Сотрудники (admin, staff, master, accounting, sales) — в Настройки → Сотрудники."""
     queryset = Tenant.objects.exclude(type__in=EMPLOYEE_TYPES)
     serializer_class = TenantSerializer
     permission_classes = [IsAuthenticated, CanReadResource, CanWriteResource]
+    pagination_class = TenantPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['type', 'phone']
     search_fields = ['name', 'email', 'phone', 'contact_person']

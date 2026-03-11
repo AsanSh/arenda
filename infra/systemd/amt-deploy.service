@@ -1,0 +1,16 @@
+[Unit]
+Description=AMT Production Deploy (run deploy script)
+Documentation=file:///root/arenda/docs/restore-points/POINT_F.md
+After=network.target docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/arenda
+ExecStart=/root/arenda/infra/deploy.sh
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=amt-deploy
+
+[Install]
+WantedBy=multi-user.target

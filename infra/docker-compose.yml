@@ -29,6 +29,9 @@ services:
       - DATABASE_URL=postgresql://amt_user:amt_password@db:5432/amt_db
       - DEBUG=1
       - SECRET_KEY=django-insecure-dev-key-change-in-production
+      - FEATURE_ANALYTICS=${FEATURE_ANALYTICS:-false}
+      - FEATURE_INVESTOR_PORTAL=${FEATURE_INVESTOR_PORTAL:-false}
+      - FEATURE_SMART_FORECAST=${FEATURE_SMART_FORECAST:-false}
 
   admin-frontend:
     build: ../admin-frontend
@@ -39,6 +42,9 @@ services:
       - "3000:3000"
     environment:
       - REACT_APP_API_URL=${REACT_APP_API_URL:-https://assetmanagement.team/api}
+      - REACT_APP_FEATURE_ANALYTICS=${REACT_APP_FEATURE_ANALYTICS:-false}
+      - REACT_APP_FEATURE_INVESTOR_PORTAL=${REACT_APP_FEATURE_INVESTOR_PORTAL:-false}
+      - REACT_APP_FEATURE_SMART_FORECAST=${REACT_APP_FEATURE_SMART_FORECAST:-false}
       - CHOKIDAR_USEPOLLING=true
       - HOST=0.0.0.0
       - DANGEROUSLY_DISABLE_HOST_CHECK=true

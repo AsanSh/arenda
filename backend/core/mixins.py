@@ -92,6 +92,10 @@ class DataScopingMixin:
                 return queryset.filter(id__in=counterparty_ids)
             return queryset.none()
         
+        # Account: сотрудники видят все счета (для приёма платежей)
+        elif model.__name__ == 'Account':
+            return queryset
+        
         # Для других моделей (Accrual, Payment, Deposit) фильтруем через contract
         if hasattr(model, 'contract'):
             if contract_ids:

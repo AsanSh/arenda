@@ -26,5 +26,11 @@ urlpatterns = [
     path('api/reports/', include('reports.urls')),
     path('api/notifications/', include('notifications.urls')),
 ]
+
+# Feature-gated modules (не ломают текущий сайт при выключенном feature)
+if getattr(settings, 'FEATURE_ANALYTICS', False):
+    urlpatterns.append(path('api/analytics/', include('analytics.urls')))
+if getattr(settings, 'FEATURE_INVESTOR_PORTAL', False):
+    urlpatterns.append(path('api/investor/', include('investor_portal.urls')))
 # Раздаём media в любом режиме (nginx проксирует /media/ на Django)
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

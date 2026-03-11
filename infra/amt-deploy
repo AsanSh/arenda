@@ -1,0 +1,6 @@
+#!/bin/bash
+# Обёртка для запуска AMT deploy
+# Установка: sudo ln -sf /root/arenda/infra/amt-deploy /usr/local/bin/amt-deploy
+# Использование: sudo amt-deploy
+
+exec /root/arenda/infra/deploy.sh "$@"

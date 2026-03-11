@@ -1,5 +1,12 @@
 from django.contrib import admin
-from .models import User, Tenant, Request, InvestorLink, StaffAssignment, AuditLog, PROTECTED_ADMIN_USERNAMES
+from .models import User, Tenant, Request, InvestorLink, StaffAssignment, AuditLog, Company, PROTECTED_ADMIN_USERNAMES
+
+
+@admin.register(Company)
+class CompanyAdmin(admin.ModelAdmin):
+    list_display = ['name', 'slug', 'is_active', 'created_at']
+    list_filter = ['is_active']
+    search_fields = ['name', 'slug']
 
 
 @admin.register(User)

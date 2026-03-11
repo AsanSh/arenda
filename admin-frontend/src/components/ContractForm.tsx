@@ -52,6 +52,7 @@ interface DiscountPeriod {
 export default function ContractForm({ contract, onSubmit, loading = false, isProlongation = false }: ContractFormProps) {
   const [properties, setProperties] = useState<Property[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [tenantSearch, setTenantSearch] = useState('');
   const [discountPeriods, setDiscountPeriods] = useState<DiscountPeriod[]>([]);
   const [files, setFiles] = useState<ContractFile[]>([]);
   const [fileUploading, setFileUploading] = useState(false);
@@ -156,12 +157,22 @@ export default function ContractForm({ contract, onSubmit, loading = false, isPr
 
   const fetchTenants = async () => {
     try {
-      const response = await client.get('/tenants/');
-      setTenants(response.data.results || response.data);
+      const response = await client.get('/tenants/?page_size=5000');
+      const data = response.data.results ?? response.data;
+      setTenants(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching tenants:', error);
     }
   };
+
+  const filteredTenants = tenantSearch.trim()
+    ? tenants.filter((t) => t.name.toLowerCase().includes(tenantSearch.toLowerCase()))
+    : tenants;
+  const selectedTenant = tenants.find((t) => t.id.toString() === formData.tenant);
+  const displayTenants =
+    selectedTenant && !filteredTenants.some((t) => t.id === selectedTenant.id)
+      ? [selectedTenant, ...filteredTenants]
+      : filteredTenants;
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -318,19 +329,34 @@ export default function ContractForm({ contract, onSubmit, loading = false, isPr
             <label className="block text-xs font-medium text-slate-700 mb-1.5">
               Арендатор *
             </label>
+            {tenants.length > 30 && (
+              <input
+                type="text"
+                placeholder="Поиск по имени..."
+                value={tenantSearch}
+                onChange={(e) => setTenantSearch(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors mb-2"
+              />
+            )}
             <select
               required
               value={formData.tenant}
               onChange={(e) => setFormData({ ...formData, tenant: e.target.value })}
               className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+              title={tenants.length > 0 ? `Загружено ${tenants.length} контрагентов` : ''}
             >
               <option value="">Выберите арендатора</option>
-              {tenants.map((tenant) => (
+              {displayTenants.map((tenant) => (
                 <option key={tenant.id} value={tenant.id}>
                   {tenant.name}
                 </option>
               ))}
             </select>
+            {tenants.length > 0 && (
+              <p className="text-xs text-slate-500 mt-1">
+                {displayTenants.length} из {tenants.length} контрагентов
+              </p>
+            )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>

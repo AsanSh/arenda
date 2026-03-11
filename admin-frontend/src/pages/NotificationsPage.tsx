@@ -101,7 +101,7 @@ export default function NotificationsPage() {
 
   const fetchTenants = async () => {
     try {
-      const response = await client.get('/tenants/?page_size=1000');
+      const response = await client.get('/tenants/?page_size=5000');
       setTenants(response.data.results || response.data || []);
     } catch (error) {
       console.error('Error fetching tenants:', error);

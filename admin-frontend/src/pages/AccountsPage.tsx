@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { PlusIcon, ArrowRightIcon, ArrowLeftIcon, CurrencyDollarIcon, BanknotesIcon } from '@heroicons/react/24/outline';
-import { Search } from 'lucide-react';
+import { ArrowRightIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
+import { Plus, Search, Landmark, Banknote } from 'lucide-react';
 import client from '../api/client';
 import Drawer from '../components/Drawer';
 import AccountForm from '../components/AccountForm';
 import ActionsMenu from '../components/ui/ActionsMenu';
 import { formatCurrency } from '../utils/currency';
 import PeriodFilterBar from '../components/PeriodFilterBar';
+import { useDensity } from '../contexts/DensityContext';
+import { useCompactStyles } from '../hooks/useCompactStyles';
 import { DatePreset } from '../utils/datePresets';
 
 interface Account {
@@ -24,6 +26,8 @@ interface Account {
 }
 
 export default function AccountsPage() {
+  const { isCompact } = useDensity();
+  const compact = useCompactStyles();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -98,6 +102,7 @@ export default function AccountsPage() {
   };
 
   const handleEdit = (account: Account) => {
+    setSelectedAccount(null);
     setEditingAccount(account);
     setIsDrawerOpen(true);
   };
@@ -132,56 +137,75 @@ export default function AccountsPage() {
     setIsDrawerOpen(true);
   };
 
+  const getTypeIcon = useCallback((accountType: string) => {
+    return accountType === 'cash' ? <Banknote className="h-4 w-4" /> : <Landmark className="h-4 w-4" />;
+  }, []);
+
   if (loading) {
     return <div className="text-center py-12">Загрузка...</div>;
   }
 
-  // Группировка по валютам
-  const accountsKGS = accounts.filter(a => a.currency === 'KGS' && a.is_active);
-  const accountsUSD = accounts.filter(a => a.currency === 'USD' && a.is_active);
-  const totalKGS = accountsKGS.reduce((sum, a) => sum + parseFloat(a.balance), 0);
-  const totalUSD = accountsUSD.reduce((sum, a) => sum + parseFloat(a.balance), 0);
-
-  // Simple sparkline data (mock - in production should come from backend)
-  const sparklineData = [100, 120, 110, 130, 125, 140, 135];
+  const totalKGS = accounts
+    .filter(a => a.currency === 'KGS')
+    .reduce((sum, a) => sum + parseFloat(a.balance || '0'), 0);
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-2">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Счета</h1>
-          <p className="mt-1 text-sm text-slate-500">Управление счетами и балансами</p>
+          <h1 className={compact.sectionHeader + ' text-slate-900'}>Счета</h1>
+          <p className={`mt-0.5 ${compact.smallText} text-slate-500`}>Управление счетами и балансами</p>
         </div>
         <button
           onClick={handleAdd}
-          className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-card shadow-medium hover:bg-indigo-700 transition-colors font-medium"
+          className={`flex items-center gap-1.5 ${compact.buttonPadding} bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition-colors ${compact.buttonText} font-medium`}
         >
-          <PlusIcon className="h-5 w-5" />
+          <Plus className={compact.iconSize} />
           Добавить счет
         </button>
       </div>
 
-      {/* Поиск - сверху отдельно */}
-      <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-200 mb-3">
+      {/* KPI — 4 карточки в ряд */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="bg-white rounded-lg border border-gray-200 px-3 py-2 shadow-sm">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Всего</p>
+          <p className="text-lg font-semibold text-slate-800">{accounts.length}</p>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 px-3 py-2 shadow-sm">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Банковские</p>
+          <p className="text-lg font-semibold text-slate-800">{accounts.filter(a => a.account_type === 'bank').length}</p>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 px-3 py-2 shadow-sm">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Наличные</p>
+          <p className="text-lg font-semibold text-slate-800">{accounts.filter(a => a.account_type === 'cash').length}</p>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 px-3 py-2 shadow-sm">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Баланс KGS</p>
+          <p className="text-lg font-semibold text-slate-800">{formatCurrency(totalKGS, 'KGS')}</p>
+        </div>
+      </div>
+
+      {/* Поиск */}
+      <div className={`bg-white ${compact.cardPaddingSmall} rounded-lg shadow-sm border border-gray-200`}>
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className={`absolute left-2 top-1/2 transform -translate-y-1/2 ${compact.iconSizeSmall} text-gray-400`} />
           <input
             type="text"
             placeholder="Название, номер счета..."
             value={filters.search}
             onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-            className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            className={`w-full pl-7 pr-2 ${compact.buttonPadding} ${compact.textSize} border border-gray-300 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`}
           />
         </div>
       </div>
 
-      {/* Фильтры в виде вкладок */}
-      <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-200 mb-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-gray-700 mr-1">Показать:</span>
+      {/* Фильтры */}
+      <div className={`bg-white ${compact.cardPaddingSmall} rounded-lg shadow-sm border border-gray-200`}>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className={`${compact.smallText} font-medium text-gray-700`}>Показать:</span>
           <button
             onClick={() => setFilters({ ...filters, account_type: '', currency: '' })}
-            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+            className={`px-2 py-1 ${compact.smallText} font-medium rounded-lg transition-colors ${
               !filters.account_type && !filters.currency
                 ? 'bg-indigo-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -191,7 +215,7 @@ export default function AccountsPage() {
           </button>
           <button
             onClick={() => setFilters({ ...filters, account_type: 'bank' })}
-            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+            className={`px-2 py-1 ${compact.smallText} font-medium rounded-lg transition-colors ${
               filters.account_type === 'bank'
                 ? 'bg-indigo-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -201,7 +225,7 @@ export default function AccountsPage() {
           </button>
           <button
             onClick={() => setFilters({ ...filters, account_type: 'cash' })}
-            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+            className={`px-2 py-1 ${compact.smallText} font-medium rounded-lg transition-colors ${
               filters.account_type === 'cash'
                 ? 'bg-indigo-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -209,11 +233,11 @@ export default function AccountsPage() {
           >
             Наличные
           </button>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-1.5">
             <select
               value={filters.currency}
               onChange={(e) => setFilters({ ...filters, currency: e.target.value })}
-              className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-primary-500 focus:border-primary-500"
+              className={`px-1.5 py-1 ${compact.smallText} border border-gray-300 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500`}
             >
               <option value="">Все валюты</option>
               <option value="KGS">KGS</option>
@@ -230,125 +254,67 @@ export default function AccountsPage() {
         </div>
       </div>
 
-      {/* Balance Cards - уменьшены размеры */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-        <div className="bg-white p-3 md:p-4 rounded-card shadow-medium border border-slate-200 relative overflow-hidden group hover:shadow-large transition-shadow">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-full -mr-10 -mt-10 opacity-50"></div>
-          <div className="relative">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wide">Общий баланс (сомы)</h3>
-              <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                <BanknotesIcon className="h-4 w-4 text-indigo-600" />
-              </div>
-            </div>
-            <p className="text-xl md:text-2xl font-semibold text-slate-900 mb-2">
-              {formatCurrency(totalKGS, 'KGS')}
-            </p>
-            {/* Simple sparkline */}
-            <div className="h-8 flex items-end gap-1">
-              {sparklineData.map((value, idx) => {
-                const height = (value / Math.max(...sparklineData)) * 100;
-                return (
-                  <div
-                    key={idx}
-                    className="flex-1 bg-gradient-to-t from-indigo-500 to-indigo-400 rounded-t"
-                    style={{ height: `${height}%`, minHeight: '3px' }}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        </div>
-        <div className="bg-white p-3 md:p-4 rounded-card shadow-medium border border-slate-200 relative overflow-hidden group hover:shadow-large transition-shadow">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-green-50 to-green-100 rounded-full -mr-10 -mt-10 opacity-50"></div>
-          <div className="relative">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wide">Общий баланс (доллары)</h3>
-              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-                <CurrencyDollarIcon className="h-4 w-4 text-green-600" />
-              </div>
-            </div>
-            <p className="text-xl md:text-2xl font-semibold text-slate-900 mb-2">
-              {formatCurrency(totalUSD, 'USD')}
-            </p>
-            {/* Simple sparkline */}
-            <div className="h-8 flex items-end gap-1">
-              {sparklineData.map((value, idx) => {
-                const height = (value / Math.max(...sparklineData)) * 100;
-                return (
-                  <div
-                    key={idx}
-                    className="flex-1 bg-gradient-to-t from-green-500 to-green-400 rounded-t"
-                    style={{ height: `${height}%`, minHeight: '3px' }}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-card shadow-medium border border-slate-200 overflow-hidden">
+      {/* Таблица — стиль как в договорах */}
+      <div className="bg-white shadow rounded-lg overflow-hidden max-w-full">
         <div className="overflow-x-auto no-scrollbar w-full">
           <div className="inline-block min-w-full align-middle">
-            <table className="min-w-full divide-y divide-slate-200">
-          <thead className="bg-slate-50">
+            <table className="min-w-full divide-y divide-gray-100">
+          <thead className="bg-gray-50">
             <tr>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none w-12`}>№</th>
+              <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none`}>
                 Название
               </th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none`}>
                 Тип
               </th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none`}>
                 Валюта
               </th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none`}>
                 Владелец
               </th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none`}>
                 Баланс
               </th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none`}>
                 Статус
               </th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-right text-xs font-medium text-gray-500 tracking-wider leading-none`}>
                 Действия
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-slate-100">
-            {accounts.map((account) => (
-              <tr key={account.id} className="hover:bg-slate-50 transition-colors group">
-                <td className="px-3 py-2 whitespace-nowrap">
-                  <div className="text-sm font-medium text-slate-900">{account.name}</div>
+          <tbody className="bg-white divide-y divide-gray-100">
+            {accounts.map((account, index) => (
+              <tr key={account.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-primary-50'} leading-none`}>
+                <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs font-medium text-gray-900 leading-tight`}>{index + 1}</td>
+                <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs font-medium text-gray-900 leading-tight`}>
+                  {account.name}
                 </td>
-                <td className="px-3 py-2 whitespace-nowrap">
-                  <div className="text-xs text-slate-600">
-                    {account.account_type === 'cash' ? 'Наличные' : 'Банковский счет'}
+                <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs text-gray-500 leading-tight`}>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="shrink-0 text-slate-400">{getTypeIcon(account.account_type)}</span>
+                    <span className="truncate">{account.account_type === 'cash' ? 'Наличные' : 'Банковский счет'}</span>
                   </div>
                 </td>
-                <td className="px-3 py-2 whitespace-nowrap">
-                  <div className="text-xs text-slate-600">{account.currency}</div>
+                <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs text-gray-500 leading-tight`}>
+                  {account.currency}
                 </td>
-                <td className="px-3 py-2 whitespace-nowrap">
-                  <div className="text-xs text-slate-600">{account.owner_name || 'Общий'}</div>
+                <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs text-gray-500 leading-tight`}>
+                  {account.owner_name || 'Общий'}
                 </td>
-                <td className="px-3 py-2 whitespace-nowrap">
-                  <div className="text-sm font-semibold text-slate-900">
-                    {formatCurrency(account.balance, account.currency)}
-                  </div>
+                <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs font-semibold text-gray-900 leading-tight`}>
+                  {formatCurrency(account.balance, account.currency)}
                 </td>
-                <td className="px-4 py-2 whitespace-nowrap">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    account.is_active 
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                      : 'bg-slate-100 text-slate-600 border border-slate-200'
+                <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap leading-tight`}>
+                  <span className={`${isCompact ? 'px-1 py-0' : 'px-1.5 py-0.5'} text-xs rounded-full leading-none ${
+                    account.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                   }`}>
                     {account.is_active ? 'Активен' : 'Неактивен'}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right">
+                <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-right leading-tight`}>
                   <div className="flex justify-end items-center gap-2">
                     <button
                       onClick={() => handleEdit(account)}
@@ -360,6 +326,7 @@ export default function AccountsPage() {
                     <ActionsMenu
                       items={[
                         { label: 'Просмотр', onClick: () => {
+                          setEditingAccount(null);
                           setSelectedAccount(account);
                           setIsDrawerOpen(true);
                         }},

@@ -62,6 +62,16 @@ class User(AbstractUser):
     
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='staff', verbose_name='Роль')
     phone = models.CharField(max_length=20, blank=True, verbose_name='Телефон')
+    # TODO SaaS: при multi-tenant включить фильтрацию по company_id
+    company = models.ForeignKey(
+        'Company',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='users',
+        verbose_name='Компания',
+        help_text='Null = доступ ко всем данным (текущий режим)',
+    )
     # Связь с контрагентом (для tenant/landlord/investor)
     counterparty = models.ForeignKey(
         'Tenant',
@@ -105,8 +115,40 @@ class User(AbstractUser):
 EMPLOYEE_TYPES = frozenset({'admin', 'staff', 'master', 'accounting', 'sales'})
 
 
+class Company(models.Model):
+    """
+    Организация/компания для будущего multi-tenant SaaS.
+    Сейчас: одна компания или null = «все данные» (текущий режим).
+    TODO SaaS: включить фильтрацию по company_id в mixins и views.
+    """
+    name = models.CharField(max_length=255, verbose_name='Название')
+    slug = models.SlugField(unique=True, blank=True, verbose_name='Slug (для subdomain)')
+    is_active = models.BooleanField(default=True, verbose_name='Активна')
+    settings = models.JSONField(default=dict, blank=True, verbose_name='Настройки')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'companies'
+        verbose_name = 'Компания'
+        verbose_name_plural = 'Компании'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class Tenant(models.Model):
     """Контрагент (в т.ч. сотрудники — типы из EMPLOYEE_TYPES управляются в Настройки → Сотрудники)"""
+    # TODO SaaS: filter by company_id when multi-tenant enabled. Null = все компании.
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tenants',
+        verbose_name='Компания',
+    )
     TYPE_CHOICES = [
         ('admin', 'Администратор'),  # Суперадмин - не удалять!
         ('tenant', 'Арендатор'),

@@ -63,6 +63,7 @@ export default function TenantsPage() {
     try {
       let url = '/tenants/';
       const params = new URLSearchParams();
+      params.append('page_size', '5000'); // Показать всех контрагентов (API по умолчанию 20)
       
       if (filters.type) params.append('type', filters.type);
       if (filters.search) params.append('search', filters.search);
@@ -200,6 +201,26 @@ export default function TenantsPage() {
         </button>
       </div>
 
+      {/* KPI — 4 карточки в одну строку */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="bg-white rounded-lg border border-gray-200 px-3 py-2 shadow-sm">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Всего</p>
+          <p className="text-lg font-semibold text-slate-800">{tenants.length}</p>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 px-3 py-2 shadow-sm">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Арендаторы</p>
+          <p className="text-lg font-semibold text-slate-800">{tenants.filter(t => t.type === 'tenant').length}</p>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 px-3 py-2 shadow-sm">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Арендодатели</p>
+          <p className="text-lg font-semibold text-slate-800">{tenants.filter(t => t.type === 'landlord').length}</p>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 px-3 py-2 shadow-sm">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Прочие</p>
+          <p className="text-lg font-semibold text-slate-800">{tenants.filter(t => t.type !== 'tenant' && t.type !== 'landlord').length}</p>
+        </div>
+      </div>
+
       {/* Поиск - Компактный */}
       <div className={`bg-white ${compact.cardPaddingSmall} rounded-lg shadow-sm border border-gray-200`}>
         <div className="relative">
@@ -270,128 +291,93 @@ export default function TenantsPage() {
         </div>
       </div>
 
-      {/* Таблица - Компактная */}
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+      {/* Таблица — точный стиль договоров: primary-50 зебра, px-2 py-0.5, text-xs */}
+      <div className="bg-white shadow rounded-lg overflow-hidden max-w-full">
         <div className="overflow-x-auto no-scrollbar w-full">
-          <table className="min-w-full divide-y divide-gray-100">
+          <div className="inline-block min-w-full align-middle">
+            <table className="min-w-full divide-y divide-gray-100">
             <thead className="bg-gray-50">
               <tr>
-              <th className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider w-14 min-w-[2.5rem]`}>
-                №
-              </th>
-              <th 
-                className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider cursor-pointer hover:bg-gray-100 transition-colors`}
-                onClick={() => handleSort('name')}
-              >
-                Название {getSortIcon('name')}
-              </th>
-              <th 
-                className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider cursor-pointer hover:bg-gray-100 transition-colors`}
-                onClick={() => handleSort('type')}
-              >
-                Тип {getSortIcon('type')}
-              </th>
-              <th className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider hidden md:table-cell`}>
-                Контактное лицо
-              </th>
-              <th 
-                className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider cursor-pointer hover:bg-gray-100 transition-colors hidden lg:table-cell`}
-                onClick={() => handleSort('email')}
-              >
-                Email {getSortIcon('email')}
-              </th>
-              <th 
-                className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider cursor-pointer hover:bg-gray-100 transition-colors`}
-                onClick={() => handleSort('phone')}
-              >
-                Телефон {getSortIcon('phone')}
-              </th>
-              <th 
-                className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider cursor-pointer hover:bg-gray-100 transition-colors hidden xl:table-cell`}
-                onClick={() => handleSort('inn')}
-              >
-                ИНН {getSortIcon('inn')}
-              </th>
-              <th className={`${compact.headerPadding} text-right ${compact.headerText} text-gray-500 tracking-wider`}>
-                Действия
-              </th>
+                <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none w-12`}>№</th>
+                <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none cursor-pointer hover:bg-gray-100 transition-colors`} onClick={() => handleSort('name')}>
+                  Название {getSortIcon('name')}
+                </th>
+                <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none cursor-pointer hover:bg-gray-100 transition-colors`} onClick={() => handleSort('type')}>
+                  Тип {getSortIcon('type')}
+                </th>
+                <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none hidden md:table-cell`}>Контактное лицо</th>
+                <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none cursor-pointer hover:bg-gray-100 transition-colors hidden lg:table-cell`} onClick={() => handleSort('email')}>
+                  Email {getSortIcon('email')}
+                </th>
+                <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none cursor-pointer hover:bg-gray-100 transition-colors`} onClick={() => handleSort('phone')}>
+                  Телефон {getSortIcon('phone')}
+                </th>
+                <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none hidden lg:table-cell`}>Доп. номер</th>
+                <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none cursor-pointer hover:bg-gray-100 transition-colors hidden xl:table-cell`} onClick={() => handleSort('inn')}>
+                  ИНН {getSortIcon('inn')}
+                </th>
+                <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-right text-xs font-medium text-gray-500 tracking-wider leading-none`}>Действия</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
               {tenants.map((tenant, index) => (
-              <tr key={tenant.id} className={`hover:bg-slate-50 transition-colors group ${compact.rowHeight}`}>
-                <td className={`${compact.cellPadding} whitespace-nowrap text-slate-500 ${compact.tableText}`}>
-                  {index + 1}
-                </td>
-                <td className={`${compact.cellPadding} whitespace-nowrap`}>
-                  <button
-                    onClick={() => navigate(`/tenants/${tenant.id}`)}
-                    className={`${compact.tableText} font-medium text-slate-900 hover:text-indigo-600 transition-colors text-left`}
-                  >
-                    {tenant.name}
-                  </button>
-                </td>
-                <td className={`${compact.cellPadding} whitespace-nowrap`}>
-                  <div className={`flex items-center gap-1 ${compact.tableText} text-slate-600`}>
-                    <span className="text-slate-400">{getTypeIcon(tenant.type)}</span>
-                    {tenant.type_display || tenant.type}
-                  </div>
-                </td>
-                <td className={`${compact.cellPadding} whitespace-nowrap hidden md:table-cell`}>
-                  <div className={`${compact.tableText} text-slate-600`}>
+                <tr key={tenant.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-primary-50'} leading-none`}>
+                  <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs font-medium text-gray-900 leading-tight`}>{index + 1}</td>
+                  <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs font-medium text-gray-900 leading-tight`}>
+                    <button onClick={() => navigate(`/tenants/${tenant.id}`)} className="text-left hover:text-indigo-600 transition-colors">
+                      {tenant.name}
+                    </button>
+                  </td>
+                  <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs text-gray-500 leading-tight`}>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="shrink-0 text-slate-400">{getTypeIcon(tenant.type)}</span>
+                      <span className="truncate">{tenant.type_display || tenant.type}</span>
+                    </div>
+                  </td>
+                  <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs text-gray-500 leading-tight hidden md:table-cell`}>
                     {tenant.contact_person || <span className="text-slate-400 italic">—</span>}
-                  </div>
-                </td>
-                <td className={`${compact.cellPadding} whitespace-nowrap hidden lg:table-cell`}>
-                  <div className={`${compact.tableText} text-slate-600`}>
+                  </td>
+                  <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs text-gray-500 leading-tight hidden lg:table-cell`}>
                     {tenant.email || <span className="text-slate-400 italic">—</span>}
-                  </div>
-                </td>
-                <td className={`${compact.cellPadding} whitespace-nowrap`}>
-                  <div className={`${compact.tableText} text-slate-600`}>
+                  </td>
+                  <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs text-gray-500 leading-tight`}>
                     {tenant.phone || <span className="text-slate-400 italic">—</span>}
-                  </div>
-                </td>
-                <td className={`${compact.cellPadding} whitespace-nowrap hidden xl:table-cell`}>
-                  <div className={`${compact.tableText} text-slate-600`}>
+                  </td>
+                  <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs text-gray-500 leading-tight hidden lg:table-cell`}>
+                    {tenant.additional_contacts?.find(ac => ac.phone?.trim())?.phone ?? <span className="text-slate-400 italic">—</span>}
+                  </td>
+                  <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs text-gray-500 leading-tight hidden xl:table-cell`}>
                     {tenant.inn || <span className="text-slate-400 italic">—</span>}
-                  </div>
-                </td>
-                <td className={`${compact.cellPadding} whitespace-nowrap text-right`}>
-                  <div className="flex justify-end items-center gap-1">
-                    {canEdit ? (
-                      <>
+                  </td>
+                  <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-right leading-tight`}>
+                    <div className="flex justify-end items-center gap-2">
+                      {canEdit ? (
+                        <>
+                          <button
+                            onClick={() => handleEdit(tenant)}
+                            className="px-2 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors"
+                            title="Редактировать"
+                          >
+                            Редактировать
+                          </button>
+                          <ActionsMenu items={[{ label: 'Удалить', onClick: () => handleDelete(tenant), variant: 'danger' }]} alwaysVisible={true} />
+                        </>
+                      ) : (
                         <button
-                          onClick={() => handleEdit(tenant)}
-                          className={`px-2 py-0.5 ${compact.smallText} font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors`}
-                          title="Редактировать"
+                          onClick={() => { window.location.href = `/requests?type=CHANGE_CONTACTS&related_contract=${tenant.id}`; }}
+                          className="px-2 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors"
+                          title="Запросить изменение"
                         >
-                          Редактировать
+                          Запросить изменение
                         </button>
-                        <ActionsMenu
-                          items={[
-                            { label: 'Удалить', onClick: () => handleDelete(tenant), variant: 'danger' },
-                          ]}
-                          alwaysVisible={true}
-                        />
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          window.location.href = `/requests?type=CHANGE_CONTACTS&related_contract=${tenant.id}`;
-                        }}
-                        className={`px-2 py-0.5 ${compact.smallText} font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors`}
-                        title="Запросить изменение"
-                      >
-                        Запросить изменение
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
+                      )}
+                    </div>
+                  </td>
+                </tr>
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 

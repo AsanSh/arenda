@@ -54,6 +54,9 @@ backups/*.sql
 # Restore point ZIP-архивы
 *.zip
 
+# Deploy logs
+logs/*.log
+
 # Temporary files
 *.tmp
 *.bak

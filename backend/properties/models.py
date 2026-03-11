@@ -19,6 +19,15 @@ class Property(models.Model):
         ('inactive', 'Неактивен'),
     ]
     
+    # TODO SaaS: filter by company_id when multi-tenant enabled. Null = все компании.
+    company = models.ForeignKey(
+        'core.Company',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='properties',
+        verbose_name='Компания',
+    )
     name = models.CharField(max_length=255, verbose_name='Название объекта')
     property_type = models.CharField(
         max_length=20, 

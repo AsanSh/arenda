@@ -1,0 +1,10 @@
+#!/bin/bash
+# Git post-merge hook: запуск деплоя после git pull
+# Установка: cp /root/arenda/infra/git-hooks/post-merge /root/arenda/.git/hooks/post-merge && chmod +x /root/arenda/.git/hooks/post-merge
+# Срабатывает после: git pull origin main
+
+# Запуск только при merge в текущую ветку (например main)
+if [ "$(git rev-parse --abbrev-ref HEAD)" = "main" ]; then
+  echo "[post-merge] Запуск amt-deploy..."
+  /root/arenda/infra/deploy.sh >> /root/arenda/logs/deploy.log 2>&1 &
+fi

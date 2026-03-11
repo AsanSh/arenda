@@ -190,6 +190,26 @@ export default function PropertiesPage() {
         )}
       </div>
 
+      {/* KPI — 4 карточки в одну строку */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="bg-white rounded-lg border border-gray-200 px-3 py-2 shadow-sm">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Всего</p>
+          <p className="text-lg font-semibold text-slate-800">{properties.length}</p>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 px-3 py-2 shadow-sm">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Сдано</p>
+          <p className="text-lg font-semibold text-slate-800">{properties.filter(p => p.status === 'rented').length}</p>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 px-3 py-2 shadow-sm">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Свободно</p>
+          <p className="text-lg font-semibold text-slate-800">{properties.filter(p => p.status === 'free').length}</p>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 px-3 py-2 shadow-sm">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide">Прочее</p>
+          <p className="text-lg font-semibold text-slate-800">{properties.filter(p => p.status !== 'rented' && p.status !== 'free').length}</p>
+        </div>
+      </div>
+
       {/* Поиск - Компактный */}
       <div className={`bg-white ${compact.cardPaddingSmall} rounded-lg shadow-sm border border-gray-200`}>
         <div className="relative">
@@ -259,97 +279,75 @@ export default function PropertiesPage() {
         </div>
       </div>
 
-      {/* Таблица - Компактная с адаптивностью */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      {/* Таблица — точный стиль договоров: primary-50 зебра, px-2 py-0.5, text-xs */}
+      <div className="bg-white shadow rounded-lg overflow-hidden max-w-full">
         {/* Desktop Table */}
         <div className="hidden md:block overflow-x-auto no-scrollbar w-full">
-          <table className="min-w-full divide-y divide-gray-100">
-          <thead className="bg-gray-50">
-            <tr>
-              <th 
-                className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider cursor-pointer hover:bg-gray-100 transition-colors`}
-                onClick={() => handleSort('name')}
-              >
-                Название {getSortIcon('name')}
-              </th>
-              <th 
-                className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider cursor-pointer hover:bg-gray-100 transition-colors`}
-                onClick={() => handleSort('property_type')}
-              >
-                Тип {getSortIcon('property_type')}
-              </th>
-              <th 
-                className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider cursor-pointer hover:bg-gray-100 transition-colors hidden lg:table-cell`}
-                onClick={() => handleSort('address')}
-              >
-                Адрес {getSortIcon('address')}
-              </th>
-              <th 
-                className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider cursor-pointer hover:bg-gray-100 transition-colors`}
-                onClick={() => handleSort('area')}
-              >
-                Площадь {getSortIcon('area')}
-              </th>
-              <th 
-                className={`${compact.headerPadding} text-left ${compact.headerText} text-gray-500 tracking-wider cursor-pointer hover:bg-gray-100 transition-colors`}
-                onClick={() => handleSort('status')}
-              >
-                Статус {getSortIcon('status')}
-              </th>
-              <th className={`${compact.headerPadding} text-right ${compact.headerText} text-gray-500 tracking-wider`}>
-                Действия
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-100">
-            {properties.map((property) => (
-              <tr key={property.id} className={`hover:bg-slate-50 transition-colors group ${compact.rowHeight}`}>
-                <td className={`${compact.cellPadding} whitespace-nowrap`}>
-                  <div className={`${compact.tableText} font-medium text-gray-900`}>{property.name}</div>
-                </td>
-                <td className={`${compact.cellPadding} whitespace-nowrap`}>
-                  <div className={`${compact.tableText} text-gray-500`}>{property.property_type}</div>
-                </td>
-                <td className={`${compact.cellPadding} hidden lg:table-cell`}>
-                  <div className={`${compact.tableText} text-gray-500`}>{property.address}</div>
-                </td>
-                <td className={`${compact.cellPadding} whitespace-nowrap`}>
-                  <div className={`${compact.tableText} text-gray-500`}>{property.area} м²</div>
-                </td>
-                <td className={`${compact.cellPadding} whitespace-nowrap`}>
-                  <span className={`px-1.5 py-0.5 ${compact.smallText} rounded-full ${
-                    property.status === 'rented' ? 'bg-green-100 text-green-800' :
-                    property.status === 'free' ? 'bg-blue-100 text-blue-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {property.status}
-                  </span>
-                </td>
-                <td className={`${compact.cellPadding} whitespace-nowrap text-right`}>
-                  <div className="flex justify-end items-center gap-1">
-                    {canEdit && (
-                      <button
-                        onClick={() => handleEdit(property)}
-                        className={`px-2 py-0.5 ${compact.smallText} font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors`}
-                        title="Редактировать"
-                      >
-                        Редактировать
-                      </button>
-                    )}
-                    {canDelete && (
-                      <ActionsMenu
-                        items={[
-                          { label: 'Удалить', onClick: () => handleDelete(property), variant: 'danger' },
-                        ]}
-                        alwaysVisible={true}
-                      />
-                    )}
-                  </div>
-                </td>
+          <div className="inline-block min-w-full align-middle">
+            <table className="min-w-full divide-y divide-gray-100">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none w-12`}>№</th>
+                <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none cursor-pointer hover:bg-gray-100 transition-colors`} onClick={() => handleSort('name')}>
+                  Название {getSortIcon('name')}
+                </th>
+                <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none cursor-pointer hover:bg-gray-100 transition-colors`} onClick={() => handleSort('property_type')}>
+                  Тип {getSortIcon('property_type')}
+                </th>
+                <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none cursor-pointer hover:bg-gray-100 transition-colors hidden lg:table-cell`} onClick={() => handleSort('address')}>
+                  Адрес {getSortIcon('address')}
+                </th>
+                <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none cursor-pointer hover:bg-gray-100 transition-colors`} onClick={() => handleSort('area')}>
+                  Площадь {getSortIcon('area')}
+                </th>
+                <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-left text-xs font-medium text-gray-500 tracking-wider leading-none cursor-pointer hover:bg-gray-100 transition-colors`} onClick={() => handleSort('status')}>
+                  Статус {getSortIcon('status')}
+                </th>
+                <th className={`${isCompact ? 'px-1 py-0.5' : 'px-2 py-1'} text-right text-xs font-medium text-gray-500 tracking-wider leading-none`}>Действия</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-100">
+              {properties.map((property, index) => (
+                <tr key={property.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-primary-50'} leading-none`}>
+                  <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs font-medium text-gray-900 leading-tight`}>{index + 1}</td>
+                  <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs font-medium text-gray-900 leading-tight`}>
+                    <button onClick={() => handleEdit(property)} className="text-left hover:text-indigo-600 transition-colors">
+                      {property.name}
+                    </button>
+                  </td>
+                  <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs text-gray-500 leading-tight`}>{property.property_type}</td>
+                  <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs text-gray-500 leading-tight hidden lg:table-cell`}>{property.address}</td>
+                  <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-xs text-gray-500 leading-tight`}>{property.area} м²</td>
+                  <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap leading-tight`}>
+                    <span className={`${isCompact ? 'px-1 py-0' : 'px-1.5 py-0.5'} text-xs rounded-full leading-none ${
+                      property.status === 'rented' ? 'bg-green-100 text-green-800' :
+                      property.status === 'free' ? 'bg-blue-100 text-blue-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {property.status === 'rented' ? 'Сдан' : property.status === 'free' ? 'Свободен' : property.status}
+                    </span>
+                  </td>
+                  <td className={`${isCompact ? 'px-1 py-0' : 'px-2 py-0.5'} whitespace-nowrap text-right leading-tight`}>
+                    <div className="flex justify-end items-center gap-2">
+                      {canEdit && (
+                        <button
+                          onClick={() => handleEdit(property)}
+                          className="px-2 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors"
+                          title="Редактировать"
+                        >
+                          Редактировать
+                        </button>
+                      )}
+                      {canDelete && (
+                        <ActionsMenu items={[{ label: 'Удалить', onClick: () => handleDelete(property), variant: 'danger' }]} alwaysVisible={true} />
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
         </div>
         
         {/* Mobile Card List */}

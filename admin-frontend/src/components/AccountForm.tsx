@@ -57,7 +57,7 @@ export default function AccountForm({ account, onSubmit, loading = false }: Acco
 
   const fetchTenants = async () => {
     try {
-      const response = await client.get('/tenants/');
+      const response = await client.get('/tenants/?page_size=5000');
       // Фильтруем только арендодателей
       const landlords = (response.data.results || response.data).filter(
         (t: Tenant) => t.type === 'landlord' || t.type === 'property_owner' || t.type === 'company_owner'

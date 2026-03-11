@@ -1,0 +1,19 @@
+# Optional: запуск деплоя при изменении main ветки (после git pull)
+# ВНИМАНИЕ: path следит за файлами — при частых изменениях в /root/arenda
+# может срабатывать слишком часто. Рекомендуется использовать вручную или git hook.
+#
+# Включение: sudo systemctl enable --now amt-deploy.path
+# Отключение: sudo systemctl disable --now amt-deploy.path
+#
+# Path срабатывает при изменении refs/heads/main (после git pull origin main)
+
+[Unit]
+Description=AMT: watch for git updates (trigger deploy)
+Documentation=file:///root/arenda/docs/restore-points/POINT_F.md
+
+[Path]
+PathChanged=/root/arenda/.git/refs/heads/main
+Unit=amt-deploy.service
+
+[Install]
+WantedBy=multi-user.target
